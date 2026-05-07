@@ -52,7 +52,23 @@ app.post("/webhook", async (req, res) => {
 // ---------- endpoint ส่ง LINE ----------
 app.post("/send", async (req, res) => {
   const { name, userId } = req.body;
+const existing = await axios.get(`${DB}/children/${hn}.json`);
 
+if(existing.data && existing.data.lineUserId){
+  // ❌ มีแล้ว
+  await axios.post(
+    "https://api.line.me/v2/bot/message/reply",
+    {
+      replyToken: e.replyToken,
+      messages: [{
+        type:"text",
+        text:"⚠️ เด็กคนนี้ลงทะเบียนแล้ว"
+      }]
+    },
+    { headers:{ Authorization:`Bearer ${TOKEN}` } }
+  );
+  return;
+}
   try {
     await axios.post(
       "https://api.line.me/v2/bot/message/push",
@@ -82,6 +98,10 @@ app.listen(3000, () => console.log("server running"));
 function sendLineFollowUp(childId){
   db.ref("children/"+childId).once("value", snap=>{
     const c = snap.val();
+     if(!c.lineUserId){
+      console.log("❌ ยังไม่ลงทะเบียน LINE");
+      return;
+    }
 
     fetch("https://vaccine-line-api.onrender.com/send", {
       method: "POST",
