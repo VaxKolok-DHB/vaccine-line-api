@@ -10,7 +10,9 @@ const TOKEN = "DIK8oggf4sTTqeGzpc+PnWOX/4g+rGQOt4x/E7+b7uxOT0nSQcpU/O8to6IZgIOAz
 // 🔵 Firebase URL ของน้อง
 const DB = "https://vaccine-dashboard-81107-default-rtdb.asia-southeast1.firebasedatabase.app";
 
-// ---------- ลงทะเบียน ----------
+// =======================
+// 📌 ลงทะเบียน + รับคำตอบ
+// =======================
 app.post("/webhook", async (req, res) => {
   const events = req.body.events;
   if (!events || events.length === 0) return res.sendStatus(200);
@@ -21,41 +23,64 @@ app.post("/webhook", async (req, res) => {
     const text = e.message.text.trim();
     const userId = e.source.userId;
 
+    // =======================
+    // 🔹 ลงทะเบียน
+    // =======================
     if (text.startsWith("ลงทะเบียน")) {
       const hn = text.split(" ")[1];
 
-      if (!hn) return res.sendStatus(200);
-
       try {
-        const check = await axios.get(`${DB}/children/${hn}.json`);
+        const resData = await axios.get(`${DB}/children.json`);
+        const children = resData.data;
 
-        if (!check.data) {
-          await axios.post(
-            "https://api.line.me/v2/bot/message/reply",
-            {
-              replyToken: e.replyToken,
-              messages: [{ type: "text", text: "❌ ไม่พบข้อมูลเด็ก" }]
-            },
-            { headers: { Authorization: `Bearer ${TOKEN}` } }
-          );
+        let foundKey = null;
+
+        for (let key in children) {
+          if (children[key].hn == hn) {
+            foundKey = key;
+            break;
+          }
+        }
+
+        if (!foundKey) {
+          await reply(e.replyToken, "❌ ไม่พบข้อมูลเด็ก");
           return;
         }
 
-        await axios.patch(`${DB}/children/${hn}.json`, {
+        await axios.patch(`${DB}/children/${foundKey}.json`, {
           lineUserId: userId
         });
 
-        await axios.post(
-          "https://api.line.me/v2/bot/message/reply",
-          {
-            replyToken: e.replyToken,
-            messages: [{ type: "text", text: "✅ ลงทะเบียนสำเร็จ" }]
-          },
-          { headers: { Authorization: `Bearer ${TOKEN}` } }
-        );
+        await reply(e.replyToken, "✅ ลงทะเบียนสำเร็จ");
 
       } catch (err) {
-        console.log(err.response?.data || err.message);
+        console.log(err);
+      }
+    }
+
+    // =======================
+    // 🔹 รับอาการ
+    // =======================
+    if (text.startsWith("อาการ:")) {
+
+      const symptom = text.replace("อาการ: ", "");
+
+      try {
+        await axios.post(`${DB}/symptoms.json`, {
+          symptom: symptom,
+          userId: userId,
+          time: new Date().toISOString()
+        });
+
+        // 🔥 แจ้งเตือนถ้าอาการรุนแรง
+        if (symptom.includes("รุนแรง") || symptom.includes("หายใจ") || symptom.includes("ชัก")) {
+          await reply(e.replyToken, "🚨 กรุณานำเด็กไปพบแพทย์ทันที หรือโทร 1669");
+        } else {
+          await reply(e.replyToken, "✅ รับข้อมูลเรียบร้อย ขอบคุณครับ");
+        }
+
+      } catch (err) {
+        console.log(err);
       }
     }
   }
@@ -63,6 +88,9 @@ app.post("/webhook", async (req, res) => {
   res.sendStatus(200);
 });
 
+// =======================
+// 📌 ส่งคำถามหลังฉีด
+// =======================
 app.post("/send", async (req, res) => {
   const { name, userId } = req.body;
 
@@ -76,16 +104,47 @@ app.post("/send", async (req, res) => {
         messages: [
           {
             type: "text",
-            text: `👶 ${name} ฉีดวัคซีนแล้ว\n⏰ มีอาการอย่างไรบ้าง?`
+            text: `📋 แบบติดตามอาการหลังได้รับวัคซีน\n\n👶 ${name}\n\nกรุณาเลือกอาการของเด็ก`,
+            quickReply: {
+              items: [
+                { type: "action", action: { type: "message", label: "😊 ปกติ", text: "อาการ: ไม่มีอาการผิดปกติ" } },
+                { type: "action", action: { type: "message", label: "🤒 ไข้ต่ำ", text: "อาการ: ไข้ต่ำ" } },
+                { type: "action", action: { type: "message", label: "💉 ปวด/บวม", text: "อาการ: ปวดหรือบวมบริเวณที่ฉีด" } },
+                { type: "action", action: { type: "message", label: "🔥 ไข้สูง", text: "อาการ: ไข้สูง" } },
+                { type: "action", action: { type: "message", label: "😢 งอแง", text: "อาการ: ร้องกวนผิดปกติ" } },
+                { type: "action", action: { type: "message", label: "🚨 อาการรุนแรง", text: "อาการ: อาการรุนแรง" } }
+              ]
+            }
           }
         ]
       },
-      { headers: { Authorization: `Bearer ${TOKEN}` } }
+      {
+        headers: { Authorization: `Bearer ${TOKEN}` }
+      }
     );
 
     res.send("sent");
+
   } catch (err) {
-    console.log(err.response?.data || err.message);
+    console.log(err);
     res.send("error");
   }
 });
+
+// =======================
+// helper
+// =======================
+async function reply(token, text) {
+  await axios.post(
+    "https://api.line.me/v2/bot/message/reply",
+    {
+      replyToken: token,
+      messages: [{ type: "text", text }]
+    },
+    {
+      headers: { Authorization: `Bearer ${TOKEN}` }
+    }
+  );
+}
+
+app.listen(3000, () => console.log("server running"));
