@@ -1,7 +1,6 @@
 {
   "name": "line-api",
   "version": "1.0.0",
-  "description": "LINE vaccine follow up API",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
