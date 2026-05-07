@@ -76,3 +76,22 @@ app.post("/send", async (req, res) => {
 });
 
 app.listen(3000, () => console.log("server running"));
+
+
+
+function sendLineFollowUp(childId){
+  db.ref("children/"+childId).once("value", snap=>{
+    const c = snap.val();
+
+    fetch("https://vaccine-line-api.onrender.com/send", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        name: c.name,
+        userId: c.lineUserId
+      })
+    });
+  });
+}
