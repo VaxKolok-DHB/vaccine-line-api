@@ -5,7 +5,7 @@ const app = express();
 app.use(express.json());
 
 // 🔴 ใส่ TOKEN (ห้ามมีช่องว่าง)
-const TOKEN = "PUT_YOUR_LINE_TOKEN_HERE";
+const TOKEN = "DIK8oggf4sTTqeGzpc+PnWOX/4g+rGQOt4x/E7+b7uxOT0nSQcpU/O8to6IZgIOAzRpfGzesWr5Gh+P0EAH6gTKJ+lhqyOIVGOgS+o9cY3S3h6+l0vY1sMQ0hmZDKOaNu6zkfaYL+4unZLnjWLJBdgdB04t89/1O/w1cDnyilFU=";
 
 // 🔵 Firebase
 const DB = "https://vaccine-dashboard-81107-default-rtdb.asia-southeast1.firebasedatabase.app";
