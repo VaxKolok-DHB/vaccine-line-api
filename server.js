@@ -93,7 +93,7 @@ app.post("/webhook", async (req, res) => {
         });
 
         if (
-          symptom.includes("รุนแรง") ||
+          symptom.includes("อาการรุนแรง") ||
           symptom.includes("หายใจ") ||
           symptom.includes("ชัก")
         ) {
