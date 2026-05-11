@@ -76,41 +76,55 @@ app.post("/webhook", async (req, res) => {
     }
 
     // 🔹 รับอาการ
-    if (text.startsWith("อาการ:")) {
+   if (text.startsWith("อาการ:")) {
 
-    const symptom = text.replace("อาการ: ", "");
+  const symptom = text.replace("อาการ: ", "");
 
-    // 🔥 แบ่งระดับ
-    let level = "🟢 ปกติ";
+  let level = "🟢 ปกติ";
 
-    if (symptom.includes("รุนแรง") || symptom.includes("ชัก")) {
-        level = "🔴 ฉุกเฉิน";
-    } else if (symptom.includes("ไข้สูง")) {
-        level = "🟠 เฝ้าระวัง";
+  if (symptom.includes("รุนแรง") || symptom.includes("ชัก")) {
+    level = "🔴 ฉุกเฉิน";
+  } else if (symptom.includes("ไข้สูง")) {
+    level = "🟠 เฝ้าระวัง";
+  }
+
+  try {
+
+    // 🔥 1. ดึงข้อมูลเด็กจาก Firebase
+    const resData = await axios.get(`${DB}/children.json`);
+    const children = resData.data || {};
+
+    let foundChild = null;
+
+    for (let key in children) {
+      if (children[key].lineUserId === userId) {
+        foundChild = children[key];
+        break;
+      }
     }
 
-    try {
+    // 🔥 2. บันทึก (เพิ่ม name + hn)
+    await axios.post(`${DB}/symptoms.json`, {
+      symptom: symptom,
+      level: level,
+      userId: userId,
+      name: foundChild?.name || "-",
+      hn: foundChild?.hn || "-",
+      time: new Date().toISOString(),
+      status: "รอดำเนินการ"
+    });
 
-        // ✅ บันทึกลง Firebase
-        await axios.post(`${DB}/symptoms.json`, {
-        symptom: symptom,
-        level: level,
-        userId: userId,
-        time: new Date().toISOString(),
-        status: "รอดำเนินการ"
-        });
-
-        // ✅ ตอบผู้ปกครอง
-        if (level === "🔴 ฉุกเฉิน") {
-        await reply(e.replyToken, "🚨 กรุณาพาเด็กไปพบแพทย์ทันที หรือโทร 1669");
-        } else {
-        await reply(e.replyToken, "✅ รับข้อมูลเรียบร้อย ขอบคุณครับ");
-        }
-
-    } catch (err) {
-        console.log(err);
+    // 🔥 3. ตอบกลับ
+    if (level === "🔴 ฉุกเฉิน") {
+      await reply(e.replyToken, "🚨 กรุณาพาเด็กไปพบแพทย์ทันที หรือโทร 1669");
+    } else {
+      await reply(e.replyToken, "✅ รับข้อมูลเรียบร้อย ขอบคุณครับ");
     }
-    }
+
+  } catch (err) {
+    console.log(err);
+  }
+}
   }
 
   res.sendStatus(200);
