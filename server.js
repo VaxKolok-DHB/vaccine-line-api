@@ -134,7 +134,7 @@ app.post("/webhook", async (req, res) => {
 // 📌 ส่ง LINE หลังฉีด
 // =======================
 app.post("/send", async (req, res) => {
-  const { name, userId, vaccines } = req.body;
+  const { name, userId, vaccines, date } = req.body;
   if (!userId) return res.send("no userId");
 
   const vaccineText =
