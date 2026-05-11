@@ -214,3 +214,4 @@ async function reply(token, text) {
 }
 
 app.listen(3000, () => console.log("server running"));
+console.log("🔥 SEND CALLED", name, userId);
