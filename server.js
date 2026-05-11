@@ -3,6 +3,8 @@ const axios = require("axios");
 const cors = require("cors");
 
 const app = express();
+
+app.use(cors()); 
 app.use(express.json());
 
 // 🔴 ใส่ TOKEN (ห้ามมีช่องว่าง)
@@ -176,4 +178,22 @@ app.post("/send", async (req, res) => {
     res.send("error");
   }
 });
+
+
+// =======================
+// helper
+// =======================
+async function reply(token, text) {
+  await axios.post(
+    "https://api.line.me/v2/bot/message/reply",
+    {
+      replyToken: token,
+      messages: [{ type: "text", text }]
+    },
+    {
+      headers: { Authorization: `Bearer ${TOKEN}` }
+    }
+  );
+}
+
 app.listen(3000, () => console.log("server running"));
