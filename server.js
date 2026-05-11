@@ -107,7 +107,6 @@ app.post("/webhook", async (req, res) => {
 // =======================
 app.post("/send", async (req, res) => {
   const { name, userId, vaccines } = req.body;
-  console.log("🔥 SEND CALLED", name, userId);
   if (!userId) return res.send("no userId");
 
   const vaccineText =
