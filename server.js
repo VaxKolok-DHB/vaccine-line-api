@@ -104,6 +104,10 @@ app.post("/send", async (req, res) => {
     vaccines && vaccines.length > 0 ? vaccines.join(", ") : "ไม่ระบุ";
 
   try {
+
+    // =======================
+    // 📌 1. แจ้งทันที
+    // =======================
     await axios.post(
       "https://api.line.me/v2/bot/message/push",
       {
@@ -117,28 +121,58 @@ app.post("/send", async (req, res) => {
 👶 ${name}
 💉 ได้รับวัคซีน: ${vaccineText}
 
-📋 กรุณาเลือกอาการของเด็ก`,
-            quickReply: {
-              items: [
-                { type: "action", action: { type: "message", label: "😊 ปกติ", text: "อาการ: ไม่มีอาการผิดปกติ" } },
-                { type: "action", action: { type: "message", label: "🤒 ไข้ต่ำ", text: "อาการ: ไข้ต่ำ" } },
-                { type: "action", action: { type: "message", label: "💉 ปวด/บวม", text: "อาการ: ปวดหรือบวมบริเวณที่ฉีด" } },
-                { type: "action", action: { type: "message", label: "🔥 ไข้สูง", text: "อาการ: ไข้สูง" } },
-                { type: "action", action: { type: "message", label: "😢 งอแง", text: "อาการ: ร้องกวนผิดปกติ" } },
-                { type: "action", action: { type: "message", label: "🚨 อาการรุนแรง", text: "อาการ: อาการรุนแรง" } }
-              ]
-            }
+กรุณาสังเกตอาการของเด็กอย่างใกล้ชิด`
           }
         ]
       },
       { headers: { Authorization: `Bearer ${TOKEN}` } }
     );
 
+    // =======================
+    // ⏱ 2. รอ 10 นาที แล้วถามอาการ
+    // =======================
+    setTimeout(async () => {
+
+      try {
+        await axios.post(
+          "https://api.line.me/v2/bot/message/push",
+          {
+            to: userId,
+            messages: [
+              {
+                type: "text",
+                text:
+`📋 แบบติดตามอาการหลังได้รับวัคซีน
+
+👶 ${name}
+
+ขณะนี้มีอาการอย่างไรบ้าง`,
+                quickReply: {
+                  items: [
+                    { type: "action", action: { type: "message", label: "😊 ปกติ", text: "อาการ: ไม่มีอาการผิดปกติ" } },
+                    { type: "action", action: { type: "message", label: "🤒 ไข้ต่ำ", text: "อาการ: ไข้ต่ำ" } },
+                    { type: "action", action: { type: "message", label: "💉 ปวด/บวม", text: "อาการ: ปวดหรือบวมบริเวณที่ฉีด" } },
+                    { type: "action", action: { type: "message", label: "🔥 ไข้สูง", text: "อาการ: ไข้สูง" } },
+                    { type: "action", action: { type: "message", label: "🚨 อาการรุนแรง", text: "อาการ: อาการรุนแรง" } }
+                  ]
+                }
+              }
+            ]
+          },
+          { headers: { Authorization: `Bearer ${TOKEN}` } }
+        );
+
+      } catch (err) {
+        console.log("delay error:", err.response?.data || err.message);
+      }
+
+    }, 10 * 60 * 1000); // ⏱ 10 นาที
+
     res.send("sent");
+
   } catch (err) {
     console.log(err.response?.data || err.message);
     res.send("error");
   }
 });
-
 app.listen(3000, () => console.log("server running"));
