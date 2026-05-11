@@ -4,25 +4,19 @@ const cors = require("cors");
 
 const app = express();
 
-
-app.use(cors({
-  origin: "*",
-  methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: ["Content-Type"]
-}));
-
-app.options("*", cors()); // 🔥 ตัวนี้ห้ามลืม
-
-
+app.use(cors({ origin: "*", methods: ["GET","POST","OPTIONS"], allowedHeaders: ["Content-Type"] }));
+app.options("*", cors());
 app.use(express.json());
 
-// 🔴 ใส่ TOKEN (ห้ามมีช่องว่าง)
+// 🔴 TOKEN (ห้ามมีช่องว่าง)
 const TOKEN = "DIK8oggf4sTTqeGzpc+PnWOX/4g+rGQOt4x/E7+b7uxOT0nSQcpU/O8to6IZgIOAzRpfGzesWr5Gh+P0EAH6gTKJ+lhqyOIVGOgS+o9cY3S3h6+l0vY1sMQ0hmZDKOaNu6zkfaYL+4unZLnjWLJBdgdB04t89/1O/w1cDnyilFU=";
 
 // 🔵 Firebase
 const DB = "https://vaccine-dashboard-81107-default-rtdb.asia-southeast1.firebasedatabase.app";
 
-// ---------- helper ----------
+// =======================
+// helper
+// =======================
 async function reply(token, text) {
   await axios.post(
     "https://api.line.me/v2/bot/message/reply",
@@ -31,8 +25,39 @@ async function reply(token, text) {
   );
 }
 
+async function pushMessage(to, message) {
+  await axios.post(
+    "https://api.line.me/v2/bot/message/push",
+    { to, messages: [message] },
+    { headers: { Authorization: `Bearer ${TOKEN}` } }
+  );
+}
+
 // =======================
-// 📌 WEBHOOK (ลงทะเบียน + รับอาการ)
+// follow-up sender
+// =======================
+async function sendFollowUp(userId, name, label) {
+  await pushMessage(userId, {
+    type: "text",
+    text:
+`📋 ติดตามอาการ (${label})
+
+👶 ${name}
+
+ขณะนี้มีอาการอย่างไรบ้าง`,
+    quickReply: {
+      items: [
+        { type: "action", action: { type: "message", label: "😊 ปกติ", text: "อาการ: ไม่มีอาการผิดปกติ" } },
+        { type: "action", action: { type: "message", label: "🤒 ไข้ต่ำ", text: "อาการ: ไข้ต่ำ" } },
+        { type: "action", action: { type: "message", label: "🔥 ไข้สูง", text: "อาการ: ไข้สูง" } },
+        { type: "action", action: { type: "message", label: "🚨 รุนแรง", text: "อาการ: อาการรุนแรง" } }
+      ]
+    }
+  });
+}
+
+// =======================
+// webhook
 // =======================
 app.post("/webhook", async (req, res) => {
   const events = req.body.events;
@@ -44,176 +69,110 @@ app.post("/webhook", async (req, res) => {
     const text = e.message.text.trim();
     const userId = e.source.userId;
 
-    // 🔹 ลงทะเบียน: ลงทะเบียน 20196
+    // 🔹 ลงทะเบียน
     if (text.startsWith("ลงทะเบียน")) {
       const hn = text.split(" ")[1];
 
-      try {
-        const resData = await axios.get(`${DB}/children.json`);
-        const children = resData.data || {};
+      const resData = await axios.get(`${DB}/children.json`);
+      const children = resData.data || {};
 
-        let foundKey = null;
-        for (let key in children) {
-          if (children[key].hn == hn) {
-            foundKey = key;
-            break;
-          }
+      let foundKey = null;
+      for (let key in children) {
+        if (children[key].hn == hn) {
+          foundKey = key;
+          break;
         }
-
-        if (!foundKey) {
-          await reply(e.replyToken, "❌ ไม่พบข้อมูลเด็ก");
-          return;
-        }
-
-        await axios.patch(`${DB}/children/${foundKey}.json`, {
-          lineUserId: userId
-        });
-
-        await reply(e.replyToken, "✅ ลงทะเบียนสำเร็จ");
-      } catch (err) {
-        console.log(err.response?.data || err.message);
       }
+
+      if (!foundKey) {
+        await reply(e.replyToken, "❌ ไม่พบข้อมูลเด็ก");
+        return;
+      }
+
+      await axios.patch(`${DB}/children/${foundKey}.json`, {
+        lineUserId: userId
+      });
+
+      await reply(e.replyToken, "✅ ลงทะเบียนสำเร็จ");
     }
 
     // 🔹 รับอาการ
-   if (text.startsWith("อาการ:")) {
+    if (text.startsWith("อาการ:")) {
+      const symptom = text.replace("อาการ: ", "");
 
-  const symptom = text.replace("อาการ: ", "");
+      let level = "🟢 ปกติ";
+      if (symptom.includes("รุนแรง") || symptom.includes("ชัก")) level = "🔴 ฉุกเฉิน";
+      else if (symptom.includes("ไข้สูง")) level = "🟠 เฝ้าระวัง";
 
-  let level = "🟢 ปกติ";
+      // 🔥 หาเด็กจาก userId
+      const resData = await axios.get(`${DB}/children.json`);
+      const children = resData.data || {};
 
-  if (symptom.includes("รุนแรง") || symptom.includes("ชัก")) {
-    level = "🔴 ฉุกเฉิน";
-  } else if (symptom.includes("ไข้สูง")) {
-    level = "🟠 เฝ้าระวัง";
-  }
+      let foundChild = null;
+      for (let key in children) {
+        if (children[key].lineUserId === userId) {
+          foundChild = children[key];
+          break;
+        }
+      }
 
-  try {
+      // 🔥 บันทึก
+      await axios.post(`${DB}/symptoms.json`, {
+        symptom,
+        level,
+        userId,
+        name: foundChild?.name || "-",
+        hn: foundChild?.hn || "-",
+        time: new Date().toISOString(),
+        status: "รอดำเนินการ"
+      });
 
-    // 🔥 1. ดึงข้อมูลเด็กจาก Firebase
-    const resData = await axios.get(`${DB}/children.json`);
-    const children = resData.data || {};
-
-    let foundChild = null;
-
-    for (let key in children) {
-      if (children[key].lineUserId === userId) {
-        foundChild = children[key];
-        break;
+      // 🔥 ตอบ
+      if (level === "🔴 ฉุกเฉิน") {
+        await reply(e.replyToken, "🚨 กรุณาพาเด็กไปพบแพทย์ทันที หรือโทร 1669");
+      } else {
+        await reply(e.replyToken, "✅ รับข้อมูลเรียบร้อย");
       }
     }
-
-    // 🔥 2. บันทึก (เพิ่ม name + hn)
-    await axios.post(`${DB}/symptoms.json`, {
-      symptom: symptom,
-      level: level,
-      userId: userId,
-      name: foundChild?.name || "-",
-      hn: foundChild?.hn || "-",
-      time: new Date().toISOString(),
-      status: "รอดำเนินการ"
-    });
-
-    // 🔥 3. ตอบกลับ
-    if (level === "🔴 ฉุกเฉิน") {
-      await reply(e.replyToken, "🚨 กรุณาพาเด็กไปพบแพทย์ทันที หรือโทร 1669");
-    } else {
-      await reply(e.replyToken, "✅ รับข้อมูลเรียบร้อย ขอบคุณครับ");
-    }
-
-  } catch (err) {
-    console.log(err);
-  }
-}
   }
 
   res.sendStatus(200);
 });
 
 // =======================
-// 📌 ส่ง LINE หลังฉีด
+// ส่งหลังฉีด
 // =======================
 app.post("/send", async (req, res) => {
   const { name, userId, vaccines, date } = req.body;
+
   if (!userId) return res.send("no userId");
 
-  const vaccineText =
-    vaccines && vaccines.length > 0 ? vaccines.join(", ") : "ไม่ระบุ";
+  const vaccineText = vaccines?.join(", ") || "ไม่ระบุ";
 
-    let showDate = "ไม่ระบุ";
-
-if(date){
-  const d = new Date(date);
-  if(!isNaN(d)){
-    showDate = d.toLocaleDateString("th-TH");
+  let showDate = "ไม่ระบุ";
+  if (date) {
+    const d = new Date(date);
+    if (!isNaN(d)) showDate = d.toLocaleDateString("th-TH");
   }
-}
 
   try {
 
-    // =======================
-    // 📌 1. แจ้งทันที
-    // =======================
-    await axios.post(
-      "https://api.line.me/v2/bot/message/push",
-      {
-        to: userId,
-        messages: [
-          {
-            type: "text",
-            text:
-`📌 แจ้งการรับวัคซีน
+    // 🔥 แจ้งทันที
+    await pushMessage(userId, {
+      type: "text",
+      text:
+`📌 ได้รับวัคซีนแล้ว
 
 👶 ${name}
-📅 วันที่ฉีด: ${showDate}
-💉 ได้รับวัคซีน: ${vaccineText}
+📅 ${showDate}
+💉 ${vaccineText}`
+    });
 
-กรุณาสังเกตอาการของเด็กอย่างใกล้ชิด`
-          }
-        ]
-      },
-      { headers: { Authorization: `Bearer ${TOKEN}` } }
-    );
-
-    // =======================
-    // ⏱ 2. รอ 10 นาที แล้วถามอาการ
-    // =======================
-    setTimeout(async () => {
-
-      try {
-        await axios.post(
-          "https://api.line.me/v2/bot/message/push",
-          {
-            to: userId,
-            messages: [
-              {
-                type: "text",
-                text:
-`📋 แบบติดตามอาการหลังได้รับวัคซีน
-
-👶 ${name}
-
-ขณะนี้มีอาการอย่างไรบ้าง`,
-                quickReply: {
-                  items: [
-                    { type: "action", action: { type: "message", label: "😊 ปกติ", text: "อาการ: ไม่มีอาการผิดปกติ" } },
-                    { type: "action", action: { type: "message", label: "🤒 ไข้ต่ำ", text: "อาการ: ไข้ต่ำ" } },
-                    { type: "action", action: { type: "message", label: "💉 ปวด/บวม", text: "อาการ: ปวดหรือบวมบริเวณที่ฉีด" } },
-                    { type: "action", action: { type: "message", label: "🔥 ไข้สูง", text: "อาการ: ไข้สูง" } },
-                    { type: "action", action: { type: "message", label: "🚨 อาการรุนแรง", text: "อาการ: อาการรุนแรง" } }
-                  ]
-                }
-              }
-            ]
-          },
-          { headers: { Authorization: `Bearer ${TOKEN}` } }
-        );
-
-      } catch (err) {
-        console.log("delay error:", err.response?.data || err.message);
-      }
-
-    }, 10 * 60 * 1000); // ⏱ 10 นาที
+    // 🔥 schedule (อาจหลุดใน Render free)
+    setTimeout(()=> sendFollowUp(userId, name, "10 นาที"), 10 * 60 * 1000);
+    setTimeout(()=> sendFollowUp(userId, name, "6 ชั่วโมง"), 6 * 60 * 60 * 1000);
+    setTimeout(()=> sendFollowUp(userId, name, "24 ชั่วโมง"), 24 * 60 * 60 * 1000);
+    setTimeout(()=> sendFollowUp(userId, name, "3 วัน"), 3 * 24 * 60 * 60 * 1000);
 
     res.send("sent");
 
@@ -222,22 +181,5 @@ if(date){
     res.send("error");
   }
 });
-
-
-// =======================
-// helper
-// =======================
-async function reply(token, text) {
-  await axios.post(
-    "https://api.line.me/v2/bot/message/reply",
-    {
-      replyToken: token,
-      messages: [{ type: "text", text }]
-    },
-    {
-      headers: { Authorization: `Bearer ${TOKEN}` }
-    }
-  );
-}
 
 app.listen(3000, () => console.log("server running"));
