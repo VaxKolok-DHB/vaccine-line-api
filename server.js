@@ -99,21 +99,27 @@ app.post("/webhook", async (req, res) => {
 // 📌 ส่ง LINE หลังฉีด
 // =======================
 app.post("/send", async (req, res) => {
-  const { name, userId, vaccines, date } = req.body;
+  const { name, userId, vaccines } = req.body;
 
   if (!userId) return res.send("no userId");
 
   const vaccineText =
     vaccines && vaccines.length > 0 ? vaccines.join(", ") : "ไม่ระบุ";
 
-  // 🔥 แปลงวันที่
-  let showDate = "";
-  if(date){
-    const d = new Date(date);
+    let showDate = "ไม่ระบุ";
+
+if(date){
+  const d = new Date(date);
+  if(!isNaN(d)){
     showDate = d.toLocaleDateString("th-TH");
   }
+}
 
   try {
+
+    // =======================
+    // 📌 1. แจ้งทันที
+    // =======================
     await axios.post(
       "https://api.line.me/v2/bot/message/push",
       {
