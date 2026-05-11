@@ -4,33 +4,40 @@ const cors = require("cors");
 
 const app = express();
 
-
+// ✅ CORS (แก้ error ทั้งหมด)
 app.use(cors({
   origin: "*",
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type"]
 }));
+app.options("*", cors());
 
-app.options("*", cors()); 
 app.use(express.json());
 
-// 🔴 ใส่ TOKEN (ห้ามมีช่องว่าง)
+// 🔴 ใส่ TOKEN จริง (ห้ามมีช่องว่าง)
 const TOKEN = "DIK8oggf4sTTqeGzpc+PnWOX/4g+rGQOt4x/E7+b7uxOT0nSQcpU/O8to6IZgIOAzRpfGzesWr5Gh+P0EAH6gTKJ+lhqyOIVGOgS+o9cY3S3h6+l0vY1sMQ0hmZDKOaNu6zkfaYL+4unZLnjWLJBdgdB04t89/1O/w1cDnyilFU=";
 
 // 🔵 Firebase
 const DB = "https://vaccine-dashboard-81107-default-rtdb.asia-southeast1.firebasedatabase.app";
 
-// ---------- helper ----------
+// =======================
+// 📌 helper
+// =======================
 async function reply(token, text) {
   await axios.post(
     "https://api.line.me/v2/bot/message/reply",
-    { replyToken: token, messages: [{ type: "text", text }] },
-    { headers: { Authorization: `Bearer ${TOKEN}` } }
+    {
+      replyToken: token,
+      messages: [{ type: "text", text }]
+    },
+    {
+      headers: { Authorization: `Bearer ${TOKEN}` }
+    }
   );
 }
 
 // =======================
-// 📌 WEBHOOK (ลงทะเบียน + รับอาการ)
+// 📌 webhook (ลงทะเบียน + รับอาการ)
 // =======================
 app.post("/webhook", async (req, res) => {
   const events = req.body.events;
@@ -42,7 +49,7 @@ app.post("/webhook", async (req, res) => {
     const text = e.message.text.trim();
     const userId = e.source.userId;
 
-    // 🔹 ลงทะเบียน: ลงทะเบียน 20196
+    // 🔹 ลงทะเบียน
     if (text.startsWith("ลงทะเบียน")) {
       const hn = text.split(" ")[1];
 
@@ -68,6 +75,7 @@ app.post("/webhook", async (req, res) => {
         });
 
         await reply(e.replyToken, "✅ ลงทะเบียนสำเร็จ");
+
       } catch (err) {
         console.log(err.response?.data || err.message);
       }
@@ -93,6 +101,7 @@ app.post("/webhook", async (req, res) => {
         } else {
           await reply(e.replyToken, "✅ รับข้อมูลเรียบร้อย ขอบคุณครับ");
         }
+
       } catch (err) {
         console.log(err.response?.data || err.message);
       }
@@ -103,29 +112,26 @@ app.post("/webhook", async (req, res) => {
 });
 
 // =======================
-// 📌 ส่ง LINE หลังฉีด
+// 📌 ส่ง LINE
 // =======================
 app.post("/send", async (req, res) => {
-  const { name, userId, vaccines } = req.body;
+  const { name, userId, vaccines, date } = req.body;
+
   if (!userId) return res.send("no userId");
 
   const vaccineText =
     vaccines && vaccines.length > 0 ? vaccines.join(", ") : "ไม่ระบุ";
 
-    let showDate = "ไม่ระบุ";
-
-if(date){
-  const d = new Date(date);
-  if(!isNaN(d)){
-    showDate = d.toLocaleDateString("th-TH");
+  let showDate = "ไม่ระบุ";
+  if (date) {
+    const d = new Date(date);
+    if (!isNaN(d)) {
+      showDate = d.toLocaleDateString("th-TH");
+    }
   }
-}
 
   try {
-
-    // =======================
-    // 📌 1. แจ้งทันที
-    // =======================
+    // 🔥 แจ้งทันที
     await axios.post(
       "https://api.line.me/v2/bot/message/push",
       {
@@ -140,18 +146,17 @@ if(date){
 📅 วันที่ฉีด: ${showDate}
 💉 ได้รับวัคซีน: ${vaccineText}
 
-กรุณาสังเกตอาการของเด็กอย่างใกล้ชิด`
+กรุณาสังเกตอาการของเด็ก`
           }
         ]
       },
-      { headers: { Authorization: `Bearer ${TOKEN}` } }
+      {
+        headers: { Authorization: `Bearer ${TOKEN}` }
+      }
     );
 
-    // =======================
-    // ⏱ 2. รอ 10 นาที แล้วถามอาการ
-    // =======================
+    // 🔥 follow-up 10 นาที
     setTimeout(async () => {
-
       try {
         await axios.post(
           "https://api.line.me/v2/bot/message/push",
@@ -170,8 +175,8 @@ if(date){
                   items: [
                     { type: "action", action: { type: "message", label: "😊 ปกติ", text: "อาการ: ไม่มีอาการผิดปกติ" } },
                     { type: "action", action: { type: "message", label: "🤒 ไข้ต่ำ", text: "อาการ: ไข้ต่ำ" } },
-                    { type: "action", action: { type: "message", label: "💉 ปวด/บวม", text: "อาการ: ปวดหรือบวมบริเวณที่ฉีด" } },
                     { type: "action", action: { type: "message", label: "🔥 ไข้สูง", text: "อาการ: ไข้สูง" } },
+                    { type: "action", action: { type: "message", label: "💉 ปวด/บวม", text: "อาการ: ปวดหรือบวมบริเวณที่ฉีด" } },
                     { type: "action", action: { type: "message", label: "🚨 อาการรุนแรง", text: "อาการ: อาการรุนแรง" } }
                   ]
                 }
@@ -180,12 +185,10 @@ if(date){
           },
           { headers: { Authorization: `Bearer ${TOKEN}` } }
         );
-
       } catch (err) {
         console.log("delay error:", err.response?.data || err.message);
       }
-
-    }, 10 * 60 * 1000); // ⏱ 10 นาที
+    }, 10 * 60 * 1000);
 
     res.send("sent");
 
@@ -195,22 +198,4 @@ if(date){
   }
 });
 
-
-// =======================
-// helper
-// =======================
-async function reply(token, text) {
-  await axios.post(
-    "https://api.line.me/v2/bot/message/reply",
-    {
-      replyToken: token,
-      messages: [{ type: "text", text }]
-    },
-    {
-      headers: { Authorization: `Bearer ${TOKEN}` }
-    }
-  );
-}
-
 app.listen(3000, () => console.log("server running"));
-
