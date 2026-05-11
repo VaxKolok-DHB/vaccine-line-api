@@ -107,7 +107,7 @@ app.post("/webhook", async (req, res) => {
 // =======================
 app.post("/send", async (req, res) => {
   const { name, userId, vaccines } = req.body;
-
+  console.log("🔥 SEND CALLED", name, userId);
   if (!userId) return res.send("no userId");
 
   const vaccineText =
@@ -214,4 +214,4 @@ async function reply(token, text) {
 }
 
 app.listen(3000, () => console.log("server running"));
-console.log("🔥 SEND CALLED", name, userId);
+
