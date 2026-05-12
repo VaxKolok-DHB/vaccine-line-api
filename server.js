@@ -126,15 +126,15 @@ app.post("/webhook", async (req, res) => {
           }
         }
 
-        // บันทึกอาการ (มี name + hn)
+            
         await axios.post(`${DB}/symptoms.json`, {
-          symptom,
-          level,
-          userId,
-          name: foundChild?.name || "-",
-          hn: foundChild?.hn || "-",
-          time: new Date().toISOString(),
-          status: "รอดำเนินการ"
+        symptom: "รอติดตามอาการ",
+        level: "รอประเมิน",
+        userId: userId,
+        name: name,
+        hn: req.body.hn || "-", // ถ้ามีส่งมา
+        time: new Date().toISOString(),
+        status: "รอดำเนินการ"
         });
 
         if (level === "🔴 ฉุกเฉิน") {
