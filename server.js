@@ -7,7 +7,7 @@ app.use(cors({ origin: "*", methods: ["GET","POST","OPTIONS"], allowedHeaders: [
 app.options("*", cors());
 app.use(express.json());
 
-// 🔴 ใส่ TOKEN จริง (ห้ามมีช่องว่าง/ขึ้นบรรทัด)
+// 🔴 ใส่ TOKEN 
 const TOKEN = "DIK8oggf4sTTqeGzpc+PnWOX/4g+rGQOt4x/E7+b7uxOT0nSQcpU/O8to6IZgIOAzRpfGzesWr5Gh+P0EAH6gTKJ+lhqyOIVGOgS+o9cY3S3h6+l0vY1sMQ0hmZDKOaNu6zkfaYL+4unZLnjWLJBdgdB04t89/1O/w1cDnyilFU=";
 
 // 🔵 Firebase Realtime DB URL
