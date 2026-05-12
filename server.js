@@ -35,7 +35,7 @@ async function pushMessage(to, message) {
 // สร้างรายการติดตาม (เก็บเวลาใน DB)
 function addFollowUp(userId, name, delayMs, label) {
   const sendAt = new Date(Date.now() + delayMs).toISOString();
-  return axios.post(`${DB}/followups.json`, {
+  return axios.post(`${DB}/symptoms.json`, {
     userId,
     name,
     label,
@@ -184,7 +184,6 @@ app.post("/send", async (req, res) => {
 กรุณาสังเกตอาการของเด็ก`
     });
     await sendFollowUp(userId, name, "ทันทีหลังฉีด");
-    // 🔥 สร้างตารางติดตาม (ไม่ใช้ setTimeout)
     await addFollowUp(userId, name, 10 * 60 * 1000, "10 นาที");
     await addFollowUp(userId, name, 6 * 60 * 60 * 1000, "6 ชั่วโมง");
     await addFollowUp(userId, name, 24 * 60 * 60 * 1000, "24 ชั่วโมง");
@@ -202,7 +201,7 @@ app.post("/send", async (req, res) => {
 // =======================
 setInterval(async () => {
   try {
-    const res = await axios.get(`${DB}/followups.json`);
+    const res = await axios.get(`${DB}/symptoms.json`);
     const data = res.data || {};
     const now = new Date();
 
@@ -213,7 +212,7 @@ setInterval(async () => {
         await sendFollowUp(f.userId, f.name, f.label);
 
         // mark ส่งแล้ว
-        await axios.patch(`${DB}/followups/${key}.json`, {
+        await axios.patch(`${DB}/symptoms/${key}.json`, {
           sent: true
         });
       }
