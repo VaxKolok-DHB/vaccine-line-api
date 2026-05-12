@@ -183,7 +183,7 @@ app.post("/send", async (req, res) => {
 
 กรุณาสังเกตอาการของเด็ก`
     });
-
+    await sendFollowUp(userId, name, "ทันทีหลังฉีด");
     // 🔥 สร้างตารางติดตาม (ไม่ใช้ setTimeout)
     await addFollowUp(userId, name, 10 * 60 * 1000, "10 นาที");
     await addFollowUp(userId, name, 6 * 60 * 60 * 1000, "6 ชั่วโมง");
