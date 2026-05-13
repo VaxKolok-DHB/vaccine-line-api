@@ -49,16 +49,18 @@ app.post("/webhook", async (req, res) => {
       const hn = text.split(" ")[1];
 
       try {
-        const resData = await axios.get(`${DB}/children.json`);
-        const children = resData.data || {};
+        // 🔥 ดึงข้อมูลเด็กจาก children ก่อน
+            const resData = await axios.get(`${DB}/children.json`);
+            const children = resData.data;
 
-        let foundKey = null;
-        for (let key in children) {
-          if (children[key].hn == hn) {
-            foundKey = key;
-            break;
-          }
-        }
+            let child = null;
+
+            for(let key in children){
+            if(children[key].lineUserId === userId){
+                child = children[key];
+                break;
+            }
+            }
 
         if (!foundKey) {
           await reply(e.replyToken, "❌ ไม่พบข้อมูลเด็ก");
@@ -110,6 +112,7 @@ app.post("/webhook", async (req, res) => {
       userId: userId,
       name: foundChild?.name || "-",
       hn: foundChild?.hn || "-",
+      phone: child?.phone || "",
       time: new Date().toISOString(),
       status: "รอดำเนินการ"
     });
@@ -167,6 +170,7 @@ if(date){
 👶 ${name}
 📅 วันที่ฉีด: ${showDate}
 💉 ได้รับวัคซีน: ${vaccineText}
+📞 ${s.phone || "-"}
 
 กรุณาสังเกตอาการของเด็กอย่างใกล้ชิด`
           }
