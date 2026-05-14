@@ -116,7 +116,7 @@ app.post("/webhook", async (req, res) => {
           }
         }
 
-        await axios.post(`${DB}/symptoms.json`, {
+        await axios.put(`${DB}/symptoms/${foundChild.hn}.json`, {
           symptom,
           level,
           userId,
