@@ -19,30 +19,59 @@ const TOKEN="DIK8oggf4sTTqeGzpc+PnWOX/4g+rGQOt4x/E7+b7uxOT0nSQcpU/O8to6IZgIOAzRp
 // 🔵 Firebase
 const DB="https://vaccine-dashboard-81107-default-rtdb.asia-southeast1.firebasedatabase.app";
 
+
 // =======================
-// 🔹 helper reply
+// 🔹 helper children
 // =======================
 
-async function reply(token,text){
+async function getChildren(){
 
-  await axios.post(
-    "https://api.line.me/v2/bot/message/reply",
-    {
-      replyToken:token,
-      messages:[
-        {
-          type:"text",
-          text
-        }
-      ]
-    },
-    {
-      headers:{
-        Authorization:`Bearer ${TOKEN}`
-      }
-    }
+  const res = await axios.get(
+    `${DB}/children.json`
   );
 
+  return res.data || {};
+
+}
+
+function findByHN(children,hn){
+
+  for(let key in children){
+
+    if(children[key].hn===hn){
+
+      return {
+        key,
+        child:children[key]
+      };
+
+    }
+  }
+
+  return null;
+}
+
+function findByUserId(
+children,
+userId
+){
+
+  for(let key in children){
+
+    if(
+      children[key]
+      .lineUserId===userId
+    ){
+
+      return {
+        key,
+        child:children[key]
+      };
+
+    }
+  }
+
+  return null;
 }
 
 
@@ -79,28 +108,16 @@ const hn=text.split(" ")[1];
 
 try{
 
-const resData=
-await axios.get(
-`${DB}/children.json`
+const children=
+await getChildren();
+
+const found=
+findByHN(
+children,
+hn
 );
 
-const children=
-resData.data || {};
-
-let foundKey=null;
-
-for(let key in children){
-
-if(children[key].hn===hn){
-
-foundKey=key;
-break;
-
-}
-
-}
-
-if(!foundKey){
+if(!found){
 
 await reply(
 e.replyToken,
@@ -111,12 +128,12 @@ return res.sendStatus(200);
 
 }
 
-
-// 🔥 ผูก LINE กับเด็ก
+const child=
+found.child;
 
 await axios.patch(
 
-`${DB}/children/${foundKey}.json`,
+`${DB}/children/${found.key}.json`,
 
 {
 
@@ -132,7 +149,35 @@ new Date().toISOString()
 );
 
 
-// 🔥 ตอบกลับ
+// 🔥 ข้อมูลวัคซีน
+
+const vaccines=
+child.vaccines || {};
+
+const vaccineText=
+
+Object.keys(vaccines)
+.length
+
+?
+
+Object.entries(
+vaccines
+)
+
+.map(
+([k,v])=>
+
+`${k}
+(${v})`
+)
+
+.join("\n")
+
+:
+
+"ยังไม่มีข้อมูล";
+
 
 await reply(
 
@@ -140,9 +185,22 @@ e.replyToken,
 
 `✅ ลงทะเบียนสำเร็จ
 
-👶 ${children[foundKey].name||"-"}
+👶 ${child.name||"-"}
 
 🆔 HN: ${hn}
+
+📌 ข้อมูลวัคซีนล่าสุด
+
+💉 ${vaccineText}
+
+📞 ${child.phone||"-"}
+
+🕒 ${
+new Date()
+.toLocaleString(
+"th-TH"
+)
+}
 
 ระบบพร้อมติดตามอาการหลังฉีดวัคซีน`
 
@@ -168,7 +226,6 @@ return res.sendStatus(200);
 }
 
 }
-
 
 // =======================
 // 🟠 รับอาการ
