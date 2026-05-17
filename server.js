@@ -1,13 +1,10 @@
+require("dotenv").config();
+
 const express=require("express");
 const axios=require("axios");
 const cors=require("cors");
 
 const app=express();
-app.use(cors({
-  origin: "*",
-  methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: ["Content-Type"]
-}));
 
 app.use(cors());
 app.use(express.json());
@@ -15,39 +12,31 @@ app.use(express.json());
 const TOKEN = "DIK8oggf4sTTqeGzpc+PnWOX/4g+rGQOt4x/E7+b7uxOT0nSQcpU/O8to6IZgIOAzRpfGzesWr5Gh+P0EAH6gTKJ+lhqyOIVGOgS+o9cY3S3h6+l0vY1sMQ0hmZDKOaNu6zkfaYL+4unZLnjWLJBdgdB04t89/1O/w1cDnyilFU=";
 
 
-const DB=
-"https://vaccine-dashboard-81107-default-rtdb.asia-southeast1.firebasedatabase.app";
+const DB="https://vaccine-dashboard-81107-default-rtdb.asia-southeast1.firebasedatabase.app";
 
 
 
-
-// ========================
-// helper เวลา
-// ========================
+// =================
+// helper
+// =================
 
 function thaiTime(){
 
- return new Date()
- .toLocaleString(
- "th-TH",
- {
- timeZone:"Asia/Bangkok"
- }
- );
+return new Date()
+.toLocaleString(
+"th-TH",
+{
+timeZone:"Asia/Bangkok"
+}
+);
 
 }
 
-
-// ========================
-// Reply
-// ========================
 
 async function reply(
 token,
 text
 ){
-
-try{
 
 await axios.post(
 
@@ -78,23 +67,8 @@ Authorization:
 );
 
 }
-catch(err){
-
-console.log(
-"Reply:",
-err.response?.data ||
-err.message
-);
-
-}
-
-}
 
 
-
-// ========================
-// Push
-// ========================
 
 async function push(
 userId,
@@ -102,12 +76,9 @@ text,
 quickReply=null
 ){
 
-try{
-
-const msg={
+let msg={
 
 type:"text",
-
 text
 
 };
@@ -130,7 +101,9 @@ await axios.post(
 
 to:userId,
 
-messages:[msg]
+messages:[
+msg
+]
 
 },
 
@@ -146,23 +119,8 @@ Authorization:
 );
 
 }
-catch(err){
-
-console.log(
-"Push:",
-err.response?.data ||
-err.message
-);
-
-}
-
-}
 
 
-
-// ========================
-// Firebase helper
-// ========================
 
 async function getChildren(){
 
@@ -171,9 +129,11 @@ await axios.get(
 `${DB}/children.json`
 );
 
-return res.data || {};
+return res.data||{};
 
 }
+
+
 
 function findByHN(
 children,
@@ -241,9 +201,9 @@ return null;
 
 
 
-// ========================
+// =================
 // webhook
-// ========================
+// =================
 
 app.post(
 "/webhook",
@@ -254,26 +214,13 @@ res
 
 try{
 
-const events=
-req.body.events || [];
-
-if(
-!events.length
-){
-
-return res.sendStatus(
-200
-);
-
-}
-
 const e=
-events[0];
+req.body.events?.[0];
 
 if(
-e.type!=="message"
+!e
 ||
-e.message.type!=="text"
+e.type!=="message"
 ){
 
 return res.sendStatus(
@@ -289,10 +236,9 @@ const userId=
 e.source.userId;
 
 
-
-// ========================
+// =================
 // ลงทะเบียน
-// ========================
+// =================
 
 if(
 text.startsWith(
@@ -301,7 +247,9 @@ text.startsWith(
 ){
 
 const hn=
-text.split(" ")[1];
+text.split(
+" "
+)[1];
 
 const children=
 await getChildren();
@@ -312,19 +260,28 @@ children,
 hn
 );
 
-if(!foundChild){
+if(
+!found
+){
 
 await reply(
 e.replyToken,
-"❌ ไม่พบข้อมูลผู้ใช้"
+"❌ ไม่พบข้อมูล"
 );
 
-return res.sendStatus(200);
+return res.sendStatus(
+200
+);
 
 }
 
-await axios.put(
-`${DB}/symptoms/${foundChild.hn}.json`,
+const c=
+found.child;
+
+
+await axios.patch(
+
+`${DB}/children/${found.key}.json`,
 
 {
 
@@ -336,26 +293,20 @@ true,
 
 registeredAt:
 new Date()
-.toISOString()
+.toISOString(),
+
+followupStatus:
+"🟡 รอติดตาม"
 
 }
 
 );
 
 
-const vaccines=
-c.vaccines || {};
-
 const vaccineText=
 
-Object.keys(
-vaccines
-).length
-
-?
-
 Object.entries(
-vaccines
+c.vaccines||{}
 )
 
 .map(
@@ -368,7 +319,7 @@ vaccines
 
 .join("\n")
 
-:
+||
 
 "ยังไม่มีข้อมูล";
 
@@ -379,9 +330,9 @@ e.replyToken,
 
 `✅ ลงทะเบียนสำเร็จ
 
-👶 ${c.name||"-"}
+👶 ${c.name}
 
-🆔 ${c.hn||"-"}
+🆔 ${c.hn}
 
 💉
 ${vaccineText}
@@ -400,138 +351,171 @@ return res.sendStatus(
 
 
 
-// ========================
+// =================
 // รับอาการ
-// ========================
-if (text.startsWith("อาการ:")) {
+// =================
 
-      const symptom = text.replace("อาการ: ", "");
+if(
+text.startsWith(
+"อาการ:"
+)
+){
 
-      let level = "🟢 ปกติ";
+const symptom=
+text.replace(
+"อาการ:",
+""
+).trim();
 
-      if (symptom.includes("รุนแรง") || symptom.includes("ชัก")) {
-        level = "🔴 ฉุกเฉิน";
-      } else if (symptom.includes("ไข้สูง")) {
-        level = "🟠 เฝ้าระวัง";
-      }
+const children=
+await getChildren();
 
-      try {
+const found=
+findByUserId(
+children,
+userId
+);
 
-        const resData = await axios.get(`${DB}/children.json`);
-        const children = resData.data || {};
+if(
+!found
+){
 
-        let foundChild = null;
+return res.sendStatus(
+200
+);
 
-        for (let key in children) {
-          if (children[key].lineUserId === userId) {
-            foundChild = children[key];
-            break;
-          }
-        }
+}
 
-        await axios.put(`${DB}/symptoms/${foundChild.hn}.json`, {
-          symptom,
-          level,
-          userId,
-          name: foundChild?.name || "-",
-          hn: foundChild?.hn || "-",
-          phone: foundChild?.phone || "",
-          
-          time: new Date().toISOString(),
-          status: "รอดำเนินการ"
-        });
+const c=
+found.child;
 
-        if (level === "🔴 ฉุกเฉิน") {
-          await reply(e.replyToken, "🚨 กรุณาพาเด็กไปพบแพทย์ทันที หรือโทร 1669");
-        } else {
-          await reply(e.replyToken, "✅ รับข้อมูลเรียบร้อย ขอบคุณครับ");
-        }
+let level=
+"🟢 ปกติ";
 
-      } catch (err) {
-        console.log(err);
-      }
-    }
+if(
+symptom.includes(
+"ไข้สูง"
+)
+){
 
-  }
+level=
+"🟠 เฝ้าระวัง";
 
-  res.sendStatus(200);
+}
+
+if(
+symptom.includes(
+"รุนแรง"
+)
+){
+
+level=
+"🔴 ฉุกเฉิน";
+
+}
+
+
+await axios.put(
+
+`${DB}/symptoms/${c.hn}.json`,
+
+{
+
+name:
+c.name,
+
+hn:
+c.hn,
+
+phone:
+c.phone,
+
+symptom,
+
+level,
+
+status:
+"🟢 ติดตามแล้ว",
+
+time:
+new Date()
+.toISOString()
+
+}
+
+);
+
+
+await axios.patch(
+
+`${DB}/children/${found.key}.json`,
+
+{
+
+followupStatus:
+"🟢 ติดตามแล้ว"
+
+}
+
+);
+
+
+await reply(
+e.replyToken,
+"✅ รับข้อมูลเรียบร้อย"
+);
+
+return res.sendStatus(
+200
+);
+
+}
+
+
+return res.sendStatus(
+200
+);
+
+}
+catch(err){
+
+console.log(
+err.response?.data ||
+err.message
+);
+
+res.sendStatus(
+500
+);
+
+}
+
 });
 
 
 
-// ========================
+// =================
 // ส่งวัคซีน
-// ========================
+// =================
 
 app.post(
 "/send",
-async(req,res)=>{
+async(
+req,
+res
+)=>{
 
 try{
 
-const {
+const{
 
 name,
 userId,
 vaccines=[],
-phone="-",
+phone,
 date
 
 }=req.body;
-
-
-if(!userId){
-
-return res
-.status(400)
-.send("no userId");
-
-}
-
-
-const vaccineText=
-
-vaccines.length
-
-?
-
-vaccines.join(", ")
-
-:
-
-"ไม่ระบุ";
-
-
-let showDate="-";
-
-if(date){
-
-const d=
-new Date(date);
-
-if(!isNaN(d)){
-
-showDate=
-d.toLocaleDateString(
-"th-TH",
-{
-timeZone:
-"Asia/Bangkok"
-}
-);
-
-}
-
-}
-
-
-console.log(
-"🔥 send vaccine:",
-name
-);
-
-
-// แจ้งทันที
 
 await push(
 
@@ -541,35 +525,22 @@ userId,
 
 👶 ${name}
 
-📅 วันที่ฉีด:
-${showDate}
+📅 ${date}
 
-💉 วัคซีน:
-${vaccineText}
+💉 ${vaccines.join(", ")}
 
-📞 เบอร์:
-${phone}
+📞 ${phone}
 
 🕒 ${thaiTime()}`
 
 );
 
-console.log(
-"✅ vaccine sent"
-);
 
-
-// ถามอาการหลัง 3 วิ
+// ส่งติดตาม 30 วิ
 
 setTimeout(
 
 async()=>{
-
-try{
-
-console.log(
-"🔥 followup sending"
-);
 
 await push(
 
@@ -582,7 +553,7 @@ userId,
 ⏰ ${thaiTime()}
 
 ผ่านไปแล้ว
-3 วินาที
+30 วินาที
 
 มีอาการอย่างไรบ้าง?`,
 
@@ -610,15 +581,6 @@ text:"อาการ: ไข้ต่ำ"
 type:"action",
 action:{
 type:"message",
-label:"💉 ปวด/บวม",
-text:"อาการ: ปวดหรือบวม"
-}
-},
-
-{
-type:"action",
-action:{
-type:"message",
 label:"🔥 ไข้สูง",
 text:"อาการ: ไข้สูง"
 }
@@ -637,27 +599,13 @@ text:"อาการ: อาการรุนแรง"
 
 );
 
-console.log(
-"✅ followup sent"
-);
-
-}catch(err){
-
-console.log(
-"Followup Error:",
-err.response?.data ||
-err.message
-);
-
-}
-
 },
 
-3000
+30000
 
 );
 
-return res.send(
+res.send(
 "sent"
 );
 
@@ -665,17 +613,18 @@ return res.send(
 catch(err){
 
 console.log(
-err.response?.data ||
+err.response?.data||
 err.message
 );
 
-return res
-.status(500)
+res.status(500)
 .send("error");
 
 }
 
 });
+
+
 
 const PORT=
 process.env.PORT || 3000;
@@ -685,7 +634,7 @@ PORT,
 ()=>{
 
 console.log(
-`🚀 Server running on ${PORT}`
+`🚀 Running ${PORT}`
 );
 
 });
