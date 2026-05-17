@@ -405,7 +405,6 @@ return res.sendStatus(
 // ========================
 // รับอาการ
 // ========================
-
 if(
 text.startsWith(
 "อาการ:"
@@ -421,6 +420,7 @@ text.replace(
 
 let level=
 "🟢 ปกติ";
+
 
 if(
 symptom.includes(
@@ -487,11 +487,9 @@ symptom,
 level,
 userId,
 
-name:
-c.name,
+name:c.name,
 
-hn:
-c.hn,
+hn:c.hn,
 
 phone:
 c.phone || "",
@@ -524,7 +522,8 @@ level==="🔴 ฉุกเฉิน"
 );
 
 return res.sendStatus(
-200);
+200
+);
 
 }
 
@@ -557,45 +556,73 @@ return res.sendStatus(
 
 app.post(
 "/send",
-async(
-req,
-res
-)=>{
+async(req,res)=>{
 
 try{
 
-const{
+const {
 
 name,
 userId,
-vaccines,
-phone,
+vaccines=[],
+phone="-",
 date
 
 }=req.body;
 
 
-if(
-!userId
-){
+if(!userId){
 
-return res.send(
-"no user"
-);
+return res
+.status(400)
+.send("no userId");
 
 }
 
 
 const vaccineText=
 
-vaccines?.join(
-", "
-)
+vaccines.length
 
-||
+?
+
+vaccines.join(", ")
+
+:
 
 "ไม่ระบุ";
 
+
+let showDate="-";
+
+if(date){
+
+const d=
+new Date(date);
+
+if(!isNaN(d)){
+
+showDate=
+d.toLocaleDateString(
+"th-TH",
+{
+timeZone:
+"Asia/Bangkok"
+}
+);
+
+}
+
+}
+
+
+console.log(
+"🔥 send vaccine:",
+name
+);
+
+
+// แจ้งทันที
 
 await push(
 
@@ -605,24 +632,35 @@ userId,
 
 👶 ${name}
 
-📅 ${date||"-"}
+📅 วันที่ฉีด:
+${showDate}
 
-💉 ${vaccineText}
+💉 วัคซีน:
+${vaccineText}
 
-📞 ${phone||"-"}
+📞 เบอร์:
+${phone}
 
 🕒 ${thaiTime()}`
 
 );
 
+console.log(
+"✅ vaccine sent"
+);
 
-// ถามอัตโนมัติหลัง 3 วิ
+
+// ถามอาการหลัง 3 วิ
 
 setTimeout(
 
 async()=>{
 
 try{
+
+console.log(
+"🔥 followup sending"
+);
 
 await push(
 
@@ -637,7 +675,7 @@ userId,
 ผ่านไปแล้ว
 3 วินาที
 
-มีอาการอย่างไรบ้าง`,
+มีอาการอย่างไรบ้าง?`,
 
 [
 
@@ -690,11 +728,16 @@ text:"อาการ: อาการรุนแรง"
 
 );
 
-}
-catch(err){
+console.log(
+"✅ followup sent"
+);
+
+}catch(err){
 
 console.log(
-err
+"Followup Error:",
+err.response?.data ||
+err.message
 );
 
 }
@@ -704,7 +747,6 @@ err
 3000
 
 );
-
 
 return res.send(
 "sent"
@@ -718,14 +760,13 @@ err.response?.data ||
 err.message
 );
 
-return res.send(
-"error"
-);
+return res
+.status(500)
+.send("error");
 
 }
 
 });
-
 
 
 app.listen(
@@ -733,7 +774,7 @@ app.listen(
 ()=>{
 
 console.log(
-"🚀 Server running"
+"🚀 Server running on port 3000"
 );
 
 });
