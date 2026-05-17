@@ -565,62 +565,78 @@ ${vaccineText}
 );
 
 
-// 🔥 ติดตามหลัง 10 นาที
+await reply(
 
-setTimeout(
+e.replyToken,
 
-async()=>{
+`✅ ลงทะเบียนสำเร็จ
+
+👶 ${c.name||"-"}
+
+🆔 HN:${c.hn||"-"}
+
+📌 ข้อมูลวัคซีนล่าสุด
+
+💉
+${vaccineText}
+
+📞 ${c.phone||"-"}
+
+🕒 ${
+new Date().toLocaleString(
+"th-TH",
+{
+timeZone:"Asia/Bangkok"
+}
+)
+}
+
+ระบบพร้อมติดตามอาการ`
+
+);
+
+
+// 🔥 ถามอาการหลัง 30 วินาที
+
+setTimeout(async()=>{
+
+const followTime=
+new Date()
+.toLocaleString(
+"th-TH",
+{
+timeZone:"Asia/Bangkok"
+}
+);
 
 await push(
 
 userId,
 
-`📋 แบบติดตามอาการ
+`📋 แบบติดตามอาการหลังฉีดวัคซีน
 
-👶 ${name}
+👶 ${c.name}
 
-ตอบกลับ:
+⏰ เวลา:
+${followTime}
 
-อาการ: ไม่มีอาการผิดปกติ
-อาการ: ไข้ต่ำ
-อาการ: ปวดหรือบวม
-อาการ: ไข้สูง
-อาการ: อาการรุนแรง`
+📌 ผ่านไปแล้ว:
+30 วินาที
+
+กรุณาตอบ:
+
+😊 อาการ: ไม่มีอาการผิดปกติ
+🤒 อาการ: ไข้ต่ำ
+💉 อาการ: ปวดหรือบวม
+🔥 อาการ: ไข้สูง
+🚨 อาการ: อาการรุนแรง`
 
 );
 
-},
+},30000);
 
 
-30*1000
-
-);
-
-res.send(
-"sent"
-);
-
-}
-catch(err){
-
-console.log(
-err.response?.data ||
-err.message
-);
-
-res.send(
-"error"
-);
-
-}
-
-});
-
-
-
-app.listen(
-3000,
-()=>{
+return res.sendStatus(200);
 
 console.log(
 "🚀 Server running"
