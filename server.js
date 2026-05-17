@@ -3,6 +3,11 @@ const axios=require("axios");
 const cors=require("cors");
 
 const app=express();
+app.use(cors({
+  origin: "*",
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type"]
+}));
 
 app.use(cors());
 app.use(express.json());
@@ -13,6 +18,22 @@ const TOKEN = "DIK8oggf4sTTqeGzpc+PnWOX/4g+rGQOt4x/E7+b7uxOT0nSQcpU/O8to6IZgIOAz
 const DB=
 "https://vaccine-dashboard-81107-default-rtdb.asia-southeast1.firebasedatabase.app";
 
+
+// =======================
+// 🔹 helper reply
+// =======================
+async function reply(token, text) {
+  await axios.post(
+    "https://api.line.me/v2/bot/message/reply",
+    {
+      replyToken: token,
+      messages: [{ type: "text", text }]
+    },
+    {
+      headers: { Authorization: `Bearer ${TOKEN}` }
+    }
+  );
+}
 
 // ========================
 // helper เวลา
@@ -405,147 +426,58 @@ return res.sendStatus(
 // ========================
 // รับอาการ
 // ========================
-if(
-text.startsWith(
-"อาการ:"
-)
-){
+if (text.startsWith("อาการ:")) {
 
-const symptom=
-text.replace(
-"อาการ:",
-""
-).trim();
+      const symptom = text.replace("อาการ: ", "");
 
+      let level = "🟢 ปกติ";
 
-let level=
-"🟢 ปกติ";
+      if (symptom.includes("รุนแรง") || symptom.includes("ชัก")) {
+        level = "🔴 ฉุกเฉิน";
+      } else if (symptom.includes("ไข้สูง")) {
+        level = "🟠 เฝ้าระวัง";
+      }
 
+      try {
 
-if(
-symptom.includes(
-"รุนแรง"
-)
-||
-symptom.includes(
-"ชัก"
-)
-){
+        const resData = await axios.get(`${DB}/children.json`);
+        const children = resData.data || {};
 
-level=
-"🔴 ฉุกเฉิน";
+        let foundChild = null;
 
-}
-else if(
-symptom.includes(
-"ไข้สูง"
-)
-){
+        for (let key in children) {
+          if (children[key].lineUserId === userId) {
+            foundChild = children[key];
+            break;
+          }
+        }
 
-level=
-"🟠 เฝ้าระวัง";
+        await axios.put(`${DB}/symptoms/${foundChild.hn}.json`, {
+          symptom,
+          level,
+          userId,
+          name: foundChild?.name || "-",
+          hn: foundChild?.hn || "-",
+          phone: foundChild?.phone || "",
+          
+          time: new Date().toISOString(),
+          status: "รอดำเนินการ"
+        });
 
-}
+        if (level === "🔴 ฉุกเฉิน") {
+          await reply(e.replyToken, "🚨 กรุณาพาเด็กไปพบแพทย์ทันที หรือโทร 1669");
+        } else {
+          await reply(e.replyToken, "✅ รับข้อมูลเรียบร้อย ขอบคุณครับ");
+        }
 
+      } catch (err) {
+        console.log(err);
+      }
+    }
 
-const children=
-await getChildren();
+  }
 
-const found=
-findByUserId(
-children,
-userId
-);
-
-if(
-!found
-){
-
-await reply(
-e.replyToken,
-"❌ ไม่พบข้อมูลผู้ใช้"
-);
-
-return res.sendStatus(
-200
-);
-
-}
-
-
-const c=
-found.child;
-
-
-await axios.put(
-
-`${DB}/symptoms/${c.hn}.json`,
-
-{
-
-symptom,
-level,
-userId,
-
-name:c.name,
-
-hn:c.hn,
-
-phone:
-c.phone || "",
-
-time:
-thaiTime(),
-
-status:
-"รอดำเนินการ"
-
-}
-
-);
-
-
-await reply(
-
-e.replyToken,
-
-level==="🔴 ฉุกเฉิน"
-
-?
-
-"🚨 กรุณาพบแพทย์ทันที"
-
-:
-
-"✅ รับข้อมูลเรียบร้อย"
-
-);
-
-return res.sendStatus(
-200
-);
-
-}
-
-
-return res.sendStatus(
-200
-);
-
-}
-catch(err){
-
-console.log(
-err.response?.data ||
-err.message
-);
-
-return res.sendStatus(
-500
-);
-
-}
-
+  res.sendStatus(200);
 });
 
 
