@@ -1,3 +1,26 @@
+process.on(
+"uncaughtException",
+(err)=>{
+
+console.error(
+"UNCAUGHT:",
+err
+);
+
+});
+
+process.on(
+"unhandledRejection",
+(err)=>{
+
+console.error(
+"REJECTION:",
+err
+);
+
+});
+
+
 require("dotenv").config();
 
 const express=require("express");
@@ -16,6 +39,16 @@ app.use(express.json());
 
 const TOKEN=process.env."DIK8oggf4sTTqeGzpc+PnWOX/4g+rGQOt4x/E7+b7uxOT0nSQcpU/O8to6IZgIOAzRpfGzesWr5Gh+P0EAH6gTKJ+lhqyOIVGOgS+o9cY3S3h6+l0vY1sMQ0hmZDKOaNu6zkfaYL+4unZLnjWLJBdgdB04t89/1O/w1cDnyilFU=";
 
+
+if(!TOKEN){
+
+console.error(
+"❌ LINE_TOKEN missing"
+);
+
+process.exit(1);
+
+}
 
 const DB="https://vaccine-dashboard-81107-default-rtdb.asia-southeast1.firebasedatabase.app";
 
@@ -483,16 +516,15 @@ return res.sendStatus(
 
 });
 
-
 const PORT=
-process.env.PORT||3000;
+process.env.PORT || 3000;
 
 app.listen(
 PORT,
 ()=>{
 
 console.log(
-`🚀 Running ${PORT}`
+`🚀 Running on ${PORT}`
 );
 
 });
