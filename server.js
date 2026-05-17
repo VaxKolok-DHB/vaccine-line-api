@@ -312,28 +312,19 @@ children,
 hn
 );
 
-if(
-!found
-){
+if(!foundChild){
 
 await reply(
 e.replyToken,
-"❌ ไม่พบข้อมูล"
+"❌ ไม่พบข้อมูลผู้ใช้"
 );
 
-return res.sendStatus(
-200
-);
+return res.sendStatus(200);
 
 }
 
-const c=
-found.child;
-
-
-await axios.patch(
-
-`${DB}/children/${found.key}.json`,
+await axios.put(
+`${DB}/symptoms/${foundChild.hn}.json`,
 
 {
 
@@ -686,13 +677,15 @@ return res
 
 });
 
+const PORT=
+process.env.PORT || 3000;
 
 app.listen(
-3000,
+PORT,
 ()=>{
 
 console.log(
-"🚀 Server running on port 3000"
+`🚀 Server running on ${PORT}`
 );
 
 });
