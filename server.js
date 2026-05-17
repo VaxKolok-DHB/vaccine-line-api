@@ -1,109 +1,131 @@
-const express = require("express");
-const axios = require("axios");
-const cors = require("cors");
+const express=require("express");
+const axios=require("axios");
+const cors=require("cors");
 
-const app = express();
+const app=express();
 
 app.use(cors());
 app.use(express.json());
 
-// 🔴 LINE TOKEN
 const TOKEN = "DIK8oggf4sTTqeGzpc+PnWOX/4g+rGQOt4x/E7+b7uxOT0nSQcpU/O8to6IZgIOAzRpfGzesWr5Gh+P0EAH6gTKJ+lhqyOIVGOgS+o9cY3S3h6+l0vY1sMQ0hmZDKOaNu6zkfaYL+4unZLnjWLJBdgdB04t89/1O/w1cDnyilFU=";
 
 
-// 🔵 Firebase
-const DB =
+const DB=
 "https://vaccine-dashboard-81107-default-rtdb.asia-southeast1.firebasedatabase.app";
 
 
-// ======================
-// 🔹 Reply LINE
-// ======================
+// =========================
+// Reply
+// =========================
 
 async function reply(token,text){
 
-  try{
+ try{
 
-    await axios.post(
-      "https://api.line.me/v2/bot/message/reply",
-      {
-        replyToken:token,
-        messages:[
-          {
-            type:"text",
-            text
-          }
-        ]
-      },
-      {
-        headers:{
-          Authorization:`Bearer ${TOKEN}`
-        }
-      }
-    );
+ await axios.post(
+ "https://api.line.me/v2/bot/message/reply",
 
-  }catch(err){
+ {
 
-    console.log(
-      "Reply error:",
-      err.response?.data || err.message
-    );
+ replyToken:token,
 
-  }
+ messages:[
+ {
+ type:"text",
+ text
+ }
+ ]
 
-}
+ },
 
+ {
 
-// ======================
-// 🔹 Push LINE
-// ======================
+ headers:{
+ Authorization:`Bearer ${TOKEN}`
+ }
 
-async function push(userId,text){
+ }
 
-  try{
+ );
 
-    await axios.post(
-      "https://api.line.me/v2/bot/message/push",
-      {
-        to:userId,
-        messages:[
-          {
-            type:"text",
-            text
-          }
-        ]
-      },
-      {
-        headers:{
-          Authorization:`Bearer ${TOKEN}`
-        }
-      }
-    );
+ }catch(err){
 
-  }catch(err){
+ console.log(
+ err.response?.data ||
+ err.message
+ );
 
-    console.log(
-      "Push error:",
-      err.response?.data || err.message
-    );
-
-  }
+ }
 
 }
 
 
-// ======================
-// 🔹 Firebase helper
-// ======================
+
+// =========================
+// Push
+// =========================
+
+async function push(
+userId,
+text
+){
+
+try{
+
+await axios.post(
+
+"https://api.line.me/v2/bot/message/push",
+
+{
+
+to:userId,
+
+messages:[
+{
+type:"text",
+text
+}
+]
+
+},
+
+{
+
+headers:{
+Authorization:
+`Bearer ${TOKEN}`
+}
+
+}
+
+);
+
+}
+catch(err){
+
+console.log(
+err.response?.data ||
+err.message
+);
+
+}
+
+}
+
+
+
+// =========================
+// Firebase helper
+// =========================
 
 async function getChildren(){
 
-  const res=
-  await axios.get(
-    `${DB}/children.json`
-  );
+const res=
+await axios.get(
+`${DB}/children.json`
+);
 
-  return res.data || {};
+return res.data || {};
 
 }
 
@@ -112,53 +134,59 @@ children,
 hn
 ){
 
-  for(let key in children){
+for(let key in children){
 
-    if(children[key].hn===hn){
+if(children[key].hn===hn){
 
-      return{
-        key,
-        child:children[key]
-      };
+return{
 
-    }
+key,
+child:children[key]
 
-  }
-
-  return null;
+};
 
 }
+
+}
+
+return null;
+
+}
+
 
 function findByUserId(
 children,
 userId
 ){
 
-  for(let key in children){
+for(let key in children){
 
-    if(
-      children[key]
-      .lineUserId===userId
-    ){
+if(
+children[key]
+.lineUserId===userId
+){
 
-      return{
-        key,
-        child:children[key]
-      };
+return{
 
-    }
+key,
+child:
+children[key]
 
-  }
+};
 
-  return null;
+}
+
+}
+
+return null;
 
 }
 
 
 
-// ======================
-// 🔹 WEBHOOK
-// ======================
+// =========================
+// WEBHOOK
+// =========================
 
 app.post(
 "/webhook",
@@ -201,9 +229,9 @@ const userId=
 e.source.userId;
 
 
-// ======================
-// 🟢 ลงทะเบียน
-// ======================
+// =========================
+// ลงทะเบียน
+// =========================
 
 if(
 text.startsWith(
@@ -228,11 +256,8 @@ if(
 ){
 
 await reply(
-
 e.replyToken,
-
 "❌ ไม่พบข้อมูลเด็ก"
-
 );
 
 return res.sendStatus(
@@ -264,8 +289,6 @@ new Date()
 );
 
 
-// วัคซีน
-
 const vaccines=
 c.vaccines || {};
 
@@ -285,6 +308,7 @@ vaccines
 ([k,v])=>
 
 `${k} (${v})`
+
 )
 
 .join("\n")
@@ -300,22 +324,66 @@ e.replyToken,
 
 `✅ ลงทะเบียนสำเร็จ
 
-👶 ${c.name||"-"}
+👶 ${c.name}
 
-🆔 HN:${c.hn||"-"}
+🆔 HN:${c.hn}
 
 📌 ข้อมูลวัคซีนล่าสุด
 
-💉
-${vaccineText}
+💉${vaccineText}
 
 📞${c.phone||"-"}
 
-🕒${new Date().toLocaleString("th-TH",{ timeZone:"Asia/Bangkok"}
+🕒 ${new Date().toLocaleString("th-TH",{timeZone:"Asia/Bangkok"}
 )
-}
+}`
 
-ระบบพร้อมติดตามอาการ`
+);
+
+
+// 🔥 ถามหลัง 30 วินาที
+
+setTimeout(
+
+async()=>{
+
+const followTime=
+new Date()
+.toLocaleString(
+"th-TH",
+{
+timeZone:
+"Asia/Bangkok"
+}
+);
+
+await push(
+
+userId,
+
+`📋 แบบติดตามอาการ
+
+👶 ${c.name}
+
+⏰ เวลา:
+${followTime}
+
+📌 ผ่านไปแล้ว:
+30 วินาที
+
+กรุณาตอบ:
+
+😊 อาการ: ไม่มีอาการผิดปกติ
+🤒 อาการ: ไข้ต่ำ
+💉 อาการ: ปวดหรือบวม
+🔥 อาการ: ไข้สูง
+🚨 อาการ: อาการรุนแรง`
+
+);
+
+},
+
+30000
 
 );
 
@@ -327,9 +395,9 @@ return res.sendStatus(
 
 
 
-// ======================
-// 🟠 รับอาการ
-// ======================
+// =========================
+// รับอาการ
+// =========================
 
 if(
 text.startsWith(
@@ -338,115 +406,15 @@ text.startsWith(
 ){
 
 const symptom=
-
-text
-.replace(
+text.replace(
 "อาการ:",
 ""
-)
-.trim();
-
-
-let level=
-"🟢 ปกติ";
-
-if(
-symptom.includes(
-"ชัก"
-)
-||
-symptom.includes(
-"รุนแรง"
-)
-){
-
-level=
-"🔴 ฉุกเฉิน";
-
-}
-else if(
-symptom.includes(
-"ไข้สูง"
-)
-){
-
-level=
-"🟠 เฝ้าระวัง";
-
-}
-
-
-const children=
-await getChildren();
-
-const found=
-findByUserId(
-children,
-userId
-);
-
-if(
-!found
-){
-
-await reply(
-e.replyToken,
-"❌ ไม่พบข้อมูลผู้ใช้"
-);
-
-return res.sendStatus(
-200
-);
-
-}
-
-
-const c=
-found.child;
-
-await axios.put(
-
-`${DB}/symptoms/${c.hn}.json`,
-
-{
-
-symptom,
-level,
-userId,
-
-name:c.name,
-
-hn:c.hn,
-
-phone:
-c.phone || "",
-
-time:
-new Date()
-.toISOString(),
-
-status:
-"รอดำเนินการ"
-
-}
-
-);
+).trim();
 
 
 await reply(
-
 e.replyToken,
-
-level==="🔴 ฉุกเฉิน"
-
-?
-
-"🚨 กรุณาพาเด็กไปพบแพทย์ทันที หรือโทร 1669"
-
-:
-
 "✅ รับข้อมูลเรียบร้อย"
-
 );
 
 return res.sendStatus(
@@ -478,10 +446,9 @@ res.sendStatus(
 
 
 
-
-// ======================
-// 📌 ส่งวัคซีน
-// ======================
+// =========================
+// ส่งวัคซีน
+// =========================
 
 app.post(
 "/send",
@@ -489,7 +456,7 @@ async(req,res)=>{
 
 try{
 
-const {
+const{
 
 name,
 userId,
@@ -500,48 +467,14 @@ phone
 }=req.body;
 
 
-if(
-!userId
-){
-
-return res.send(
-"no user"
-);
-
-}
-
-
 const vaccineText=
 
-vaccines?.length
-
-?
-
-vaccines.join(
+vaccines?.join(
 ", "
 )
 
-:
-
+||
 "ไม่ระบุ";
-
-
-const showDate=
-
-date
-
-?
-
-new Date(
-date
-)
-.toLocaleDateString(
-"th-TH"
-)
-
-:
-
-"-";
 
 
 await push(
@@ -552,94 +485,45 @@ userId,
 
 👶 ${name}
 
-📅 วันที่ฉีด:
-${showDate}
+📅 ${date || "-"}
 
-💉 ได้รับวัคซีน:
-${vaccineText}
+💉 ${vaccineText}
 
-📞 ${phone||"-"}
-
-กรุณาสังเกตอาการของเด็กอย่างใกล้ชิด`
+📞 ${phone || "-"}`
 
 );
 
+res.send(
+"sent"
+);
 
-await reply(
-
-e.replyToken,
-
-`✅ ลงทะเบียนสำเร็จ
-
-👶 ${c.name||"-"}
-
-🆔 HN:${c.hn||"-"}
-
-📌 ข้อมูลวัคซีนล่าสุด
-
-💉
-${vaccineText}
-
-📞 ${c.phone||"-"}
-
-🕒 ${
-new Date().toLocaleString(
-"th-TH",
-{
-timeZone:"Asia/Bangkok"
 }
-)
-}
-
-ระบบพร้อมติดตามอาการ`
-
-);
-
-
-// 🔥 ถามอาการหลัง 30 วินาที
-
-setTimeout(async()=>{
-
-const followTime=
-new Date()
-.toLocaleString(
-"th-TH",
-{
-timeZone:"Asia/Bangkok"
-}
-);
-
-await push(
-
-userId,
-
-`📋 แบบติดตามอาการหลังฉีดวัคซีน
-
-👶 ${c.name}
-
-⏰ เวลา:
-${followTime}
-
-📌 ผ่านไปแล้ว:
-30 วินาที
-
-กรุณาตอบ:
-
-😊 อาการ: ไม่มีอาการผิดปกติ
-🤒 อาการ: ไข้ต่ำ
-💉 อาการ: ปวดหรือบวม
-🔥 อาการ: ไข้สูง
-🚨 อาการ: อาการรุนแรง`
-
-);
-
-},30000);
-
-
-return res.sendStatus(200);
+catch(err){
 
 console.log(
-"🚀 Server running"
+err.response?.data ||
+err.message
 );
 
+res.send(
+"error"
+);
+
+}
+
 });
+
+
+
+app.listen(
+
+3000,
+
+()=>{
+
+console.log(
+"🚀 Server running on 3000"
+);
+
+}
+);
