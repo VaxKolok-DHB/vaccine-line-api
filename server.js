@@ -316,8 +316,12 @@ ${c.phone||"-"}
 🕒
 ${new Date()
 .toLocaleString(
-"th-TH"
-)}
+"th-TH",
+{
+  timeZone:"Asia/Bangkok"
+}
+)
+}
 
 ระบบพร้อมติดตามอาการ`
 
