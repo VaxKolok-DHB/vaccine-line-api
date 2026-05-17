@@ -189,16 +189,6 @@ e.replyToken,
 
 🆔 HN: ${hn}
 
-📌 ข้อมูลวัคซีนล่าสุด
-
-💉 ${vaccineText}
-
-📞 ${child.phone||"-"}
-
-🕒 ${
-new Date()
-.toLocaleString(
-"th-TH"
 )
 }
 
