@@ -1,17 +1,14 @@
 {
-  "name": "line-api",
-  "version": "1.0.0",
-  "main": "server.js",
-
-  "scripts": {
-    "start": "node server.js"
+  "name":"line-api",
+  "version":"1.0.0",
+  "main":"server.js",
+  "scripts":{
+    "start":"node server.js"
   },
-
-  "dependencies": {
-    "axios": "^1.16.0",
-    "cors": "^2.8.6",
-    "dotenv": "^16.5.0",
-    "express": "^4.21.2",
-    "firebase": "^12.12.0"
+  "dependencies":{
+    "axios":"^1.16.0",
+    "cors":"^2.8.6",
+    "dotenv":"^16.5.0",
+    "express":"^4.21.2"
   }
 }
