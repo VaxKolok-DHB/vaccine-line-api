@@ -4,29 +4,102 @@ const cors = require("cors");
 
 const app = express();
 
-app.use(cors({
-  origin: "*",
-  methods: ["GET","POST","OPTIONS"],
-  allowedHeaders:["Content-Type"]
-}));
-
-app.options("*",cors());
+app.use(cors());
 app.use(express.json());
 
 // 🔴 LINE TOKEN
-const TOKEN="DIK8oggf4sTTqeGzpc+PnWOX/4g+rGQOt4x/E7+b7uxOT0nSQcpU/O8to6IZgIOAzRpfGzesWr5Gh+P0EAH6gTKJ+lhqyOIVGOgS+o9cY3S3h6+l0vY1sMQ0hmZDKOaNu6zkfaYL+4unZLnjWLJBdgdB04t89/1O/w1cDnyilFU=";
+const TOKEN = "DIK8oggf4sTTqeGzpc+PnWOX/4g+rGQOt4x/E7+b7uxOT0nSQcpU/O8to6IZgIOAzRpfGzesWr5Gh+P0EAH6gTKJ+lhqyOIVGOgS+o9cY3S3h6+l0vY1sMQ0hmZDKOaNu6zkfaYL+4unZLnjWLJBdgdB04t89/1O/w1cDnyilFU=";
+
 
 // 🔵 Firebase
-const DB="https://vaccine-dashboard-81107-default-rtdb.asia-southeast1.firebasedatabase.app";
+const DB =
+"https://vaccine-dashboard-81107-default-rtdb.asia-southeast1.firebasedatabase.app";
 
 
-// =======================
-// 🔹 helper children
-// =======================
+// ======================
+// 🔹 Reply LINE
+// ======================
+
+async function reply(token,text){
+
+  try{
+
+    await axios.post(
+      "https://api.line.me/v2/bot/message/reply",
+      {
+        replyToken:token,
+        messages:[
+          {
+            type:"text",
+            text
+          }
+        ]
+      },
+      {
+        headers:{
+          Authorization:`Bearer ${TOKEN}`
+        }
+      }
+    );
+
+  }catch(err){
+
+    console.log(
+      "Reply error:",
+      err.response?.data || err.message
+    );
+
+  }
+
+}
+
+
+// ======================
+// 🔹 Push LINE
+// ======================
+
+async function push(userId,text){
+
+  try{
+
+    await axios.post(
+      "https://api.line.me/v2/bot/message/push",
+      {
+        to:userId,
+        messages:[
+          {
+            type:"text",
+            text
+          }
+        ]
+      },
+      {
+        headers:{
+          Authorization:`Bearer ${TOKEN}`
+        }
+      }
+    );
+
+  }catch(err){
+
+    console.log(
+      "Push error:",
+      err.response?.data || err.message
+    );
+
+  }
+
+}
+
+
+// ======================
+// 🔹 Firebase helper
+// ======================
 
 async function getChildren(){
 
-  const res = await axios.get(
+  const res=
+  await axios.get(
     `${DB}/children.json`
   );
 
@@ -34,21 +107,26 @@ async function getChildren(){
 
 }
 
-function findByHN(children,hn){
+function findByHN(
+children,
+hn
+){
 
   for(let key in children){
 
     if(children[key].hn===hn){
 
-      return {
+      return{
         key,
         child:children[key]
       };
 
     }
+
   }
 
   return null;
+
 }
 
 function findByUserId(
@@ -63,50 +141,78 @@ userId
       .lineUserId===userId
     ){
 
-      return {
+      return{
         key,
         child:children[key]
       };
 
     }
+
   }
 
   return null;
+
 }
 
 
-// =======================
-// 📌 WEBHOOK
-// =======================
 
-app.post("/webhook",async(req,res)=>{
+// ======================
+// 🔹 WEBHOOK
+// ======================
 
-const events=req.body.events;
-
-if(!events || events.length===0){
-   return res.sendStatus(200);
-}
-
-const e=events[0];
-
-if(
-e.type==="message" &&
-e.message.type==="text"
-){
-
-const text=e.message.text.trim();
-const userId=e.source.userId;
-
-
-// =======================
-// 🟢 ลงทะเบียน
-// =======================
-
-if(text.startsWith("ลงทะเบียน")){
-
-const hn=text.split(" ")[1];
+app.post(
+"/webhook",
+async(req,res)=>{
 
 try{
+
+const events=
+req.body.events || [];
+
+if(
+events.length===0
+){
+
+return res.sendStatus(
+200
+);
+
+}
+
+const e=
+events[0];
+
+if(
+e.type!=="message"
+||
+e.message.type!=="text"
+){
+
+return res.sendStatus(
+200
+);
+
+}
+
+const text=
+e.message.text.trim();
+
+const userId=
+e.source.userId;
+
+
+// ======================
+// 🟢 ลงทะเบียน
+// ======================
+
+if(
+text.startsWith(
+"ลงทะเบียน"
+)
+){
+
+const hn=
+text.split(" ")[1];
 
 const children=
 await getChildren();
@@ -117,19 +223,27 @@ children,
 hn
 );
 
-if(!found){
+if(
+!found
+){
 
 await reply(
+
 e.replyToken,
+
 "❌ ไม่พบข้อมูลเด็ก"
+
 );
 
-return res.sendStatus(200);
+return res.sendStatus(
+200
+);
 
 }
 
-const child=
+const c=
 found.child;
+
 
 await axios.patch(
 
@@ -142,22 +256,24 @@ lineUserId:userId,
 registered:true,
 
 registeredAt:
-new Date().toISOString()
+new Date()
+.toISOString()
 
 }
 
 );
 
 
-// 🔥 ข้อมูลวัคซีน
+// วัคซีน
 
 const vaccines=
-child.vaccines || {};
+c.vaccines || {};
 
 const vaccineText=
 
-Object.keys(vaccines)
-.length
+Object.keys(
+vaccines
+).length
 
 ?
 
@@ -168,8 +284,7 @@ vaccines
 .map(
 ([k,v])=>
 
-`${k}
-(${v})`
+`${k} (${v})`
 )
 
 .join("\n")
@@ -185,112 +300,117 @@ e.replyToken,
 
 `✅ ลงทะเบียนสำเร็จ
 
-👶 ${child.name||"-"}
+👶 ${c.name||"-"}
 
-🆔 HN: ${hn}
+🆔 HN:
+${c.hn||"-"}
 
-)
-}
+📌 ข้อมูลวัคซีนล่าสุด
 
-ระบบพร้อมติดตามอาการหลังฉีดวัคซีน`
+💉
+${vaccineText}
+
+📞
+${c.phone||"-"}
+
+🕒
+${new Date()
+.toLocaleString(
+"th-TH"
+)}
+
+ระบบพร้อมติดตามอาการ`
 
 );
 
-return res.sendStatus(200);
-
-}
-catch(err){
-
-console.log(
-err.response?.data ||
-err.message
+return res.sendStatus(
+200
 );
 
-await reply(
-e.replyToken,
-"❌ ระบบขัดข้อง"
-);
-
-return res.sendStatus(200);
-
 }
 
-}
 
-// =======================
+
+// ======================
 // 🟠 รับอาการ
-// =======================
-
-if(text.startsWith("อาการ:")){
-
-const symptom=
-text.replace(
-"อาการ:",
-""
-).trim();
-
-let level="🟢 ปกติ";
+// ======================
 
 if(
-symptom.includes("รุนแรง")
-||
-symptom.includes("ชัก")
+text.startsWith(
+"อาการ:"
+)
 ){
 
-level="🔴 ฉุกเฉิน";
+const symptom=
+
+text
+.replace(
+"อาการ:",
+""
+)
+.trim();
+
+
+let level=
+"🟢 ปกติ";
+
+if(
+symptom.includes(
+"ชัก"
+)
+||
+symptom.includes(
+"รุนแรง"
+)
+){
+
+level=
+"🔴 ฉุกเฉิน";
 
 }
 else if(
-symptom.includes("ไข้สูง")
+symptom.includes(
+"ไข้สูง"
+)
 ){
 
-level="🟠 เฝ้าระวัง";
+level=
+"🟠 เฝ้าระวัง";
 
 }
 
-try{
-
-const resData=
-await axios.get(
-`${DB}/children.json`
-);
 
 const children=
-resData.data || {};
+await getChildren();
 
-let foundChild=null;
-
-for(let key in children){
+const found=
+findByUserId(
+children,
+userId
+);
 
 if(
-children[key]
-.lineUserId===userId
+!found
 ){
-
-foundChild=
-children[key];
-
-break;
-
-}
-
-}
-
-if(!foundChild){
 
 await reply(
 e.replyToken,
 "❌ ไม่พบข้อมูลผู้ใช้"
 );
 
-return res.sendStatus(200);
+return res.sendStatus(
+200
+);
 
 }
 
 
+const c=
+found.child;
+
 await axios.put(
 
-`${DB}/symptoms/${foundChild.hn}.json`,
+`${DB}/symptoms/${c.hn}.json`,
 
 {
 
@@ -298,17 +418,16 @@ symptom,
 level,
 userId,
 
-name:
-foundChild.name || "-",
+name:c.name,
 
-hn:
-foundChild.hn || "-",
+hn:c.hn,
 
 phone:
-foundChild.phone || "",
+c.phone || "",
 
 time:
-new Date().toISOString(),
+new Date()
+.toISOString(),
 
 status:
 "รอดำเนินการ"
@@ -318,46 +437,61 @@ status:
 );
 
 
-if(level==="🔴 ฉุกเฉิน"){
-
 await reply(
 
 e.replyToken,
+
+level==="🔴 ฉุกเฉิน"
+
+?
 
 "🚨 กรุณาพาเด็กไปพบแพทย์ทันที หรือโทร 1669"
 
-);
+:
 
-}else{
-
-await reply(
-e.replyToken,
 "✅ รับข้อมูลเรียบร้อย"
+
+);
+
+return res.sendStatus(
+200
 );
 
 }
 
-}catch(err){
 
-console.log(err);
-
-}
-
-}
+res.sendStatus(
+200
+);
 
 }
+catch(err){
 
-res.sendStatus(200);
+console.log(
+err.response?.data ||
+err.message
+);
+
+res.sendStatus(
+500
+);
+
+}
 
 });
 
 
 
-// =======================
-// 📌 ส่งข้อความหลังฉีด
-// =======================
 
-app.post("/send",async(req,res)=>{
+// ======================
+// 📌 ส่งวัคซีน
+// ======================
+
+app.post(
+"/send",
+async(req,res)=>{
+
+try{
 
 const {
 
@@ -370,10 +504,12 @@ phone
 }=req.body;
 
 
-if(!userId){
+if(
+!userId
+){
 
 return res.send(
-"no userId"
+"no user"
 );
 
 }
@@ -381,53 +517,40 @@ return res.send(
 
 const vaccineText=
 
-vaccines &&
-vaccines.length>0
+vaccines?.length
 
-? vaccines.join(", ")
+?
 
-: "ไม่ระบุ";
+vaccines.join(
+", "
+)
 
+:
 
-let showDate=
 "ไม่ระบุ";
 
 
-if(date){
+const showDate=
 
-const d=
-new Date(date);
+date
 
-if(!isNaN(d)){
+?
 
-showDate=
-d.toLocaleDateString(
+new Date(
+date
+)
+.toLocaleDateString(
 "th-TH"
-);
+)
 
-}
+:
 
-}
-
-
-try{
+"-";
 
 
-await axios.post(
+await push(
 
-"https://api.line.me/v2/bot/message/push",
-
-{
-
-to:userId,
-
-messages:[
-
-{
-
-type:"text",
-
-text:
+userId,
 
 `📌 แจ้งการรับวัคซีน
 
@@ -441,139 +564,44 @@ ${vaccineText}
 
 📞 ${phone||"-"}
 
-🕒 ${
-date
-?
-new Date(date)
-.toLocaleString("th-TH")
-:
-"-"
-}
-
 กรุณาสังเกตอาการของเด็กอย่างใกล้ชิด`
-
-}
-
-]
-
-},
-
-{
-
-headers:{
-
-Authorization:
-`Bearer ${TOKEN}`
-
-}
-
-}
 
 );
 
 
-// 🔥 ติดตาม 10 นาที
+// 🔥 ติดตามหลัง 10 นาที
 
-setTimeout(async()=>{
+setTimeout(
 
-await axios.post(
+async()=>{
 
-"https://api.line.me/v2/bot/message/push",
+await push(
 
-{
-
-to:userId,
-
-messages:[
-
-{
-
-type:"text",
-
-text:
+userId,
 
 `📋 แบบติดตามอาการ
 
 👶 ${name}
 
-มีอาการอย่างไรบ้าง`,
+ตอบกลับ:
 
-quickReply:{
-
-items:[
-
-{
-type:"action",
-action:{
-type:"message",
-label:"😊 ปกติ",
-text:"อาการ: ไม่มีอาการผิดปกติ"
-}
-},
-
-{
-type:"action",
-action:{
-type:"message",
-label:"🤒 ไข้ต่ำ",
-text:"อาการ: ไข้ต่ำ"
-}
-},
-
-{
-type:"action",
-action:{
-type:"message",
-label:"💉 ปวด/บวม",
-text:"อาการ: ปวดหรือบวม"
-}
-},
-
-{
-type:"action",
-action:{
-type:"message",
-label:"🔥 ไข้สูง",
-text:"อาการ: ไข้สูง"
-}
-},
-
-{
-type:"action",
-action:{
-type:"message",
-label:"🚨 รุนแรง",
-text:"อาการ: อาการรุนแรง"
-}
-}
-
-]
-
-}
-
-}
-
-]
-
-},
-
-{
-
-headers:{
-
-Authorization:
-`Bearer ${TOKEN}`
-
-}
-
-}
+อาการ: ไม่มีอาการผิดปกติ
+อาการ: ไข้ต่ำ
+อาการ: ปวดหรือบวม
+อาการ: ไข้สูง
+อาการ: อาการรุนแรง`
 
 );
 
-},10*60*1000);
+},
 
+10*60*1000
 
-res.send("sent");
+);
+
+res.send(
+"sent"
+);
 
 }
 catch(err){
@@ -583,15 +611,22 @@ err.response?.data ||
 err.message
 );
 
-res.send("error");
+res.send(
+"error"
+);
 
 }
 
 });
 
+
+
 app.listen(
 3000,
-()=>console.log(
-"🚀 Server running on port 3000"
-)
+()=>{
+
+console.log(
+"🚀 Server running"
 );
+
+});
