@@ -6,19 +6,24 @@ const cors=require("cors");
 
 const app=express();
 
-app.use(cors());
+app.use(cors({
+origin:"*",
+methods:["GET","POST","OPTIONS"],
+allowedHeaders:["Content-Type"]
+}));
+
 app.use(express.json());
 
-const TOKEN = "DIK8oggf4sTTqeGzpc+PnWOX/4g+rGQOt4x/E7+b7uxOT0nSQcpU/O8to6IZgIOAzRpfGzesWr5Gh+P0EAH6gTKJ+lhqyOIVGOgS+o9cY3S3h6+l0vY1sMQ0hmZDKOaNu6zkfaYL+4unZLnjWLJBdgdB04t89/1O/w1cDnyilFU=";
+const TOKEN=process.env."DIK8oggf4sTTqeGzpc+PnWOX/4g+rGQOt4x/E7+b7uxOT0nSQcpU/O8to6IZgIOAzRpfGzesWr5Gh+P0EAH6gTKJ+lhqyOIVGOgS+o9cY3S3h6+l0vY1sMQ0hmZDKOaNu6zkfaYL+4unZLnjWLJBdgdB04t89/1O/w1cDnyilFU=";
 
 
 const DB="https://vaccine-dashboard-81107-default-rtdb.asia-southeast1.firebasedatabase.app";
 
 
 
-// =================
+// ========================
 // helper
-// =================
+// ========================
 
 function thaiTime(){
 
@@ -37,6 +42,8 @@ async function reply(
 token,
 text
 ){
+
+try{
 
 await axios.post(
 
@@ -66,6 +73,15 @@ Authorization:
 
 );
 
+}catch(err){
+
+console.log(
+err.response?.data||
+err.message
+);
+
+}
+
 }
 
 
@@ -75,6 +91,8 @@ userId,
 text,
 quickReply=null
 ){
+
+try{
 
 let msg={
 
@@ -118,109 +136,49 @@ Authorization:
 
 );
 
-}
+}catch(err){
 
-
-
-async function getChildren(){
-
-const res=
-await axios.get(
-`${DB}/children.json`
+console.log(
+err.response?.data||
+err.message
 );
 
-return res.data||{};
-
-}
-
-
-
-function findByHN(
-children,
-hn
-){
-
-for(
-let key
-in children
-){
-
-if(
-children[key]
-.hn===hn
-){
-
-return{
-
-key,
-child:
-children[key]
-
-};
-
 }
 
 }
 
-return null;
-
-}
 
 
-function findByUserId(
-children,
-userId
-){
-
-for(
-let key
-in children
-){
-
-if(
-children[key]
-.lineUserId===
-userId
-){
-
-return{
-
-key,
-child:
-children[key]
-
-};
-
-}
-
-}
-
-return null;
-
-}
-
-
-
-// =================
-// webhook
-// =================
+// ========================
+// WEBHOOK
+// ========================
 
 app.post(
 "/webhook",
-async(
-req,
-res
-)=>{
+async(req,res)=>{
 
 try{
 
-const e=
-req.body.events?.[0];
+const events=
+req.body.events||[];
 
 if(
-!e
-||
+!events.length
+){
+
+return res.sendStatus(
+200
+);
+
+}
+
+const e=
+events[0];
+
+if(
 e.type!=="message"
+||
+e.message.type!=="text"
 ){
 
 return res.sendStatus(
@@ -236,9 +194,10 @@ const userId=
 e.source.userId;
 
 
-// =================
+
+// ========================
 // ลงทะเบียน
-// =================
+// ========================
 
 if(
 text.startsWith(
@@ -247,26 +206,43 @@ text.startsWith(
 ){
 
 const hn=
-text.split(
-" "
-)[1];
+text.split(" ")[1];
 
-const children=
-await getChildren();
-
-const found=
-findByHN(
-children,
-hn
+const resData=
+await axios.get(
+`${DB}/children.json`
 );
 
+const children=
+resData.data||{};
+
+let foundKey=null;
+
+for(
+let key
+in children
+){
+
 if(
-!found
+children[key]
+.hn===hn
+){
+
+foundKey=key;
+break;
+
+}
+
+}
+
+
+if(
+!foundKey
 ){
 
 await reply(
 e.replyToken,
-"❌ ไม่พบข้อมูล"
+"❌ ไม่พบข้อมูลเด็ก"
 );
 
 return res.sendStatus(
@@ -275,13 +251,13 @@ return res.sendStatus(
 
 }
 
-const c=
-found.child;
 
+const c=
+children[foundKey];
 
 await axios.patch(
 
-`${DB}/children/${found.key}.json`,
+`${DB}/children/${foundKey}.json`,
 
 {
 
@@ -303,10 +279,21 @@ followupStatus:
 );
 
 
+// วัคซีน
+
+const vaccines=
+c.vaccines||{};
+
 const vaccineText=
 
+Object.keys(
+vaccines
+).length
+
+?
+
 Object.entries(
-c.vaccines||{}
+vaccines
 )
 
 .map(
@@ -319,9 +306,10 @@ c.vaccines||{}
 
 .join("\n")
 
-||
+:
 
 "ยังไม่มีข้อมูล";
+
 
 
 await reply(
@@ -330,9 +318,9 @@ e.replyToken,
 
 `✅ ลงทะเบียนสำเร็จ
 
-👶 ${c.name}
+👶 ${c.name||"-"}
 
-🆔 ${c.hn}
+🆔 ${c.hn||"-"}
 
 💉
 ${vaccineText}
@@ -343,204 +331,29 @@ ${vaccineText}
 
 );
 
-return res.sendStatus(
-200
-);
 
-}
 
-
-
-// =================
-// รับอาการ
-// =================
-
-if(
-text.startsWith(
-"อาการ:"
-)
-){
-
-const symptom=
-text.replace(
-"อาการ:",
-""
-).trim();
-
-const children=
-await getChildren();
-
-const found=
-findByUserId(
-children,
-userId
-);
-
-if(
-!found
-){
-
-return res.sendStatus(
-200
-);
-
-}
-
-const c=
-found.child;
-
-let level=
-"🟢 ปกติ";
-
-if(
-symptom.includes(
-"ไข้สูง"
-)
-){
-
-level=
-"🟠 เฝ้าระวัง";
-
-}
-
-if(
-symptom.includes(
-"รุนแรง"
-)
-){
-
-level=
-"🔴 ฉุกเฉิน";
-
-}
-
-
-await axios.put(
-
-`${DB}/symptoms/${c.hn}.json`,
-
-{
-
-name:
-c.name,
-
-hn:
-c.hn,
-
-phone:
-c.phone,
-
-symptom,
-
-level,
-
-status:
-"🟢 ติดตามแล้ว",
-
-time:
-new Date()
-.toISOString()
-
-}
-
-);
-
-
-await axios.patch(
-
-`${DB}/children/${found.key}.json`,
-
-{
-
-followupStatus:
-"🟢 ติดตามแล้ว"
-
-}
-
-);
-
-
-await reply(
-e.replyToken,
-"✅ รับข้อมูลเรียบร้อย"
-);
-
-return res.sendStatus(
-200
-);
-
-}
-
-
-return res.sendStatus(
-200
-);
-
-}
-catch(err){
-
-console.log(
-err.response?.data ||
-err.message
-);
-
-res.sendStatus(
-500
-);
-
-}
-
-});
-
-
-
-// =================
-// ส่งวัคซีน
-// =================
-
-app.post(
-"/send",
-async(
-req,
-res
-)=>{
-
-try{
-
-const{
-
-name,
-userId,
-vaccines=[],
-phone,
-date
-
-}=req.body;
-
-await push(
-
-userId,
-
-`📌 แจ้งการรับวัคซีน
-
-👶 ${name}
-
-📅 ${date}
-
-💉 ${vaccines.join(", ")}
-
-📞 ${phone}
-
-🕒 ${thaiTime()}`
-
-);
-
-
-// ส่งติดตาม 30 วิ
+// ========================
+// follow-up
+// ========================
 
 setTimeout(
 
 async()=>{
+
+await axios.patch(
+
+`${DB}/children/${foundKey}.json`,
+
+{
+
+followupStatus:
+"🟠 ส่งติดตามแล้ว"
+
+}
+
+);
+
 
 await push(
 
@@ -548,7 +361,7 @@ userId,
 
 `📋 แบบติดตามอาการ
 
-👶 ${name}
+👶 ${c.name}
 
 ⏰ ${thaiTime()}
 
@@ -581,6 +394,15 @@ text:"อาการ: ไข้ต่ำ"
 type:"action",
 action:{
 type:"message",
+label:"💉 ปวด/บวม",
+text:"อาการ: ปวดหรือบวม"
+}
+},
+
+{
+type:"action",
+action:{
+type:"message",
 label:"🔥 ไข้สูง",
 text:"อาการ: ไข้สูง"
 }
@@ -605,8 +427,44 @@ text:"อาการ: อาการรุนแรง"
 
 );
 
-res.send(
-"sent"
+return res.sendStatus(
+200
+);
+
+}
+
+
+
+// ========================
+// รับอาการ
+// ========================
+
+if(
+text.startsWith(
+"อาการ:"
+)
+){
+
+const symptom=
+text.replace(
+"อาการ:",
+""
+).trim();
+
+await reply(
+e.replyToken,
+"✅ รับข้อมูลเรียบร้อย"
+);
+
+return res.sendStatus(
+200
+);
+
+}
+
+
+return res.sendStatus(
+200
 );
 
 }
@@ -617,17 +475,17 @@ err.response?.data||
 err.message
 );
 
-res.status(500)
-.send("error");
+return res.sendStatus(
+500
+);
 
 }
 
 });
 
 
-
 const PORT=
-process.env.PORT || 3000;
+process.env.PORT||3000;
 
 app.listen(
 PORT,
