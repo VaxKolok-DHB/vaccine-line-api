@@ -19,21 +19,7 @@ const DB=
 "https://vaccine-dashboard-81107-default-rtdb.asia-southeast1.firebasedatabase.app";
 
 
-// =======================
-// 🔹 helper reply
-// =======================
-async function reply(token, text) {
-  await axios.post(
-    "https://api.line.me/v2/bot/message/reply",
-    {
-      replyToken: token,
-      messages: [{ type: "text", text }]
-    },
-    {
-      headers: { Authorization: `Bearer ${TOKEN}` }
-    }
-  );
-}
+
 
 // ========================
 // helper เวลา
