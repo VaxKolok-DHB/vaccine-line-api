@@ -302,24 +302,16 @@ e.replyToken,
 
 👶 ${c.name||"-"}
 
-🆔 HN:
-${c.hn||"-"}
+🆔 HN:${c.hn||"-"}
 
 📌 ข้อมูลวัคซีนล่าสุด
 
 💉
 ${vaccineText}
 
-📞
-${c.phone||"-"}
+📞${c.phone||"-"}
 
-🕒
-${new Date()
-.toLocaleString(
-"th-TH",
-{
-  timeZone:"Asia/Bangkok"
-}
+🕒${new Date().toLocaleString("th-TH",{ timeZone:"Asia/Bangkok"}
 )
 }
 
