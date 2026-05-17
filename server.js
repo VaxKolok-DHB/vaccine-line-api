@@ -37,7 +37,8 @@ allowedHeaders:["Content-Type"]
 
 app.use(express.json());
 
-const TOKEN=process.env.LINE_TOKEN;
+const TOKEN = "DIK8oggf4sTTqeGzpc+PnWOX/4g+rGQOt4x/E7+b7uxOT0nSQcpU/O8to6IZgIOAzRpfGzesWr5Gh+P0EAH6gTKJ+lhqyOIVGOgS+o9cY3S3h6+l0vY1sMQ0hmZDKOaNu6zkfaYL+4unZLnjWLJBdgdB04t89/1O/w1cDnyilFU=";
+
 
 if(!TOKEN){
 
