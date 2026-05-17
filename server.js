@@ -53,38 +53,55 @@ app.post("/webhook", async (req, res) => {
     // =======================
     // 🟢 ลงทะเบียน
     // =======================
-    if (text.startsWith("ลงทะเบียน")) {
+    // =======================
+// 🟢 ลงทะเบียน
+// =======================
+if (text.startsWith("ลงทะเบียน")) {
 
-      const hn = text.split(" ")[1];
+  const hn = text.split(" ")[1];
 
-      try {
+  try {
 
-        const resData = await axios.get(`${DB}/children.json`);
-        const children = resData.data || {};
+    const resData = await axios.get(`${DB}/children.json`);
+    const children = resData.data || {};
 
-        let foundKey = null;
+    let foundKey = null;
 
-        for (let key in children) {
-          if (children[key].hn === hn) {
-            foundKey = key;
-            break;
-          }
-        }
-
-        if (!foundKey) {
-          await reply(e.replyToken, "❌ ไม่พบข้อมูลเด็ก");
-          return;
-        }
-
-        await axios.patch(`${DB}/children/${foundKey}.json`, {
-          lineUserId: userId
-        });
-
-        await reply(e.replyToken, "✅ ลงทะเบียนสำเร็จ");
-
-      } catch (err) {
-        console.log(err.response?.data || err.message);
+    for (let key in children) {
+      if (children[key].hn === hn) {
+        foundKey = key;
+        break;
       }
+    }
+
+    if (!foundKey) {
+      await reply(e.replyToken,"❌ ไม่พบข้อมูลเด็ก");
+      return;
+    }
+
+    await axios.patch(
+      `${DB}/children/${foundKey}.json`,
+      {
+        lineUserId:userId,
+
+        // 🔥 เพิ่มตรงนี้
+        registered:true,
+        registeredAt:new Date().toISOString()
+      }
+    );
+
+    await reply(
+      e.replyToken,
+      "✅ ลงทะเบียนสำเร็จ"
+    );
+
+  } catch(err){
+
+    console.log(
+      err.response?.data || err.message
+    );
+
+  }
     }
 
     // =======================
@@ -181,6 +198,7 @@ app.post("/send", async (req, res) => {
 📅 วันที่ฉีด: ${showDate}
 💉 ได้รับวัคซีน: ${vaccineText}
 📞 ${phone || "-"}
+🕒${c.registeredAt?new Date(c.registeredAt).toLocaleString("th-TH"):"-"}
 
 กรุณาสังเกตอาการของเด็กอย่างใกล้ชิด`
           }
