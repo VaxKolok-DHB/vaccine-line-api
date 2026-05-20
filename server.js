@@ -213,8 +213,9 @@ text.startsWith(
 )
 ){
 
-const hn=
-text.split(" ")[1];
+const hn=text
+.replace("ลงทะเบียน","")
+.trim();
 
 const result=
 await axios.get(
@@ -335,7 +336,6 @@ latestVaccines
 "ไม่มีข้อมูล";
 
 
-
 await reply(
 
 e.replyToken,
@@ -354,10 +354,76 @@ ${vaccineText}
 
 🕒 ${thaiTime()}
 
+ข้อมูลนี้เป็นข้อมูลบุตรของท่านหรือไม่
+
+ตอบ:
+
+✅ ใช่
+
+❌ ไม่ใช่
 `
 
 );
+await push(
 
+userId,
+
+"กรุณาตรวจสอบข้อมูล",
+
+[
+
+{
+type:"action",
+action:{
+type:"message",
+label:"✅ ใช่",
+text:"ยืนยันข้อมูล"
+}
+},
+
+{
+type:"action",
+action:{
+type:"message",
+label:"❌ ไม่ใช่",
+text:"ข้อมูลไม่ถูกต้อง"
+}
+}
+
+]
+
+);
+if(text==="ยืนยันข้อมูล"){
+
+await reply(
+
+e.replyToken,
+
+`✅ ยืนยันสำเร็จ
+
+ระบบจะติดตามอาการหลังฉีดวัคซีนของบุตรโดยอัตโนมัติ`
+
+);
+
+return res.sendStatus(200);
+
+}
+
+
+
+if(text==="ข้อมูลไม่ถูกต้อง"){
+
+await reply(
+
+e.replyToken,
+
+`❌ กรุณาติดต่อเจ้าหน้าที่`
+
+);
+
+return res.sendStatus(200);
+
+}
 
 // follow up
 
@@ -588,63 +654,50 @@ priority=
 
 }
 
-
-await axios.put(
-`${DB}/symptoms/${childKey}.json`,
-{
-    
-
-name:
-child.name||"-",
-
-hn:
-child.hn||"-",
-
-phone:
-child.phone||"-",
-
-// 🔥 เพิ่มตัวนี้
-vaccines: vaccines,
-
-symptom:
-
-symptom||
-
-"ยังไม่ระบุ",
-
-status,
-
-level,
-
-priority,
-
-time:
-
-Date.now()
-
-}
-);
-
+let child=null;
 let childKey=null;
 
 for(let key in children){
 
-if(
-children[key]
-.lineUserId===userId
-){
+   if(children[key].lineUserId===userId){
 
-child=
-children[key];
+      child=children[key];
+      childKey=key;
+      break;
 
-childKey=
-key;
-
-break;
+   }
 
 }
 
+if(child){
+
+await axios.put(
+`${DB}/symptoms/${childKey}.json`,
+{
+
+name:child.name||"-",
+
+hn:child.hn||"-",
+
+phone:child.phone||"-",
+
+vaccines:child.vaccines||{},
+
+symptom:symptom,
+
+status:status,
+
+level:level,
+
+priority:priority,
+
+time:Date.now()
+
+});
+
 }
+
+
 await reply(
 
 e.replyToken,
