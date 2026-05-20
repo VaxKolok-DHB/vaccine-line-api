@@ -685,11 +685,7 @@ return res.sendStatus(
 
 }
 
-return res.sendStatus(
-200
-);
 
-}
 catch(err){
 
 console.log(
