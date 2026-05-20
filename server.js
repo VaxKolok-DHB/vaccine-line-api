@@ -314,23 +314,47 @@ Date.now()
 
 );
 
-
-// vaccine text
+if(child){
 
 const vaccines=
 child.vaccines||{};
 
-const vaccineText=
 
-Object.keys(
+// 🔥 หาวันล่าสุด
+
+const latestDate=
+
+Object.values(
 vaccines
-).length
+)
 
-?
+.sort()
+
+.pop();
+
+
+// 🔥 เอาเฉพาะวัคซีนล่าสุด
+
+const latestVaccines=
 
 Object.entries(
 vaccines
 )
+
+.filter(
+([k,v])=>
+
+v===latestDate
+);
+
+
+const vaccineText=
+
+latestVaccines.length
+
+?
+
+latestVaccines
 
 .map(
 ([k,v])=>
@@ -344,7 +368,6 @@ vaccines
 :
 
 "ไม่มีข้อมูล";
-
 
 
 await reply(
