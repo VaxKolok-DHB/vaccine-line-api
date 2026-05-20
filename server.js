@@ -36,9 +36,7 @@ allowedHeaders:["Content-Type"]
 }));
 
 app.use(express.json());
-
 const TOKEN = "DIK8oggf4sTTqeGzpc+PnWOX/4g+rGQOt4x/E7+b7uxOT0nSQcpU/O8to6IZgIOAzRpfGzesWr5Gh+P0EAH6gTKJ+lhqyOIVGOgS+o9cY3S3h6+l0vY1sMQ0hmZDKOaNu6zkfaYL+4unZLnjWLJBdgdB04t89/1O/w1cDnyilFU=";
-
 
 if(!TOKEN){
 
@@ -49,14 +47,11 @@ console.error(
 process.exit(1);
 
 }
-
 const DB="https://vaccine-dashboard-81107-default-rtdb.asia-southeast1.firebasedatabase.app";
 
-
-
-// ==========================
+// =====================
 // helper
-// ==========================
+// =====================
 
 function thaiTime(){
 
@@ -70,6 +65,7 @@ timeZone:"Asia/Bangkok"
 
 }
 
+
 async function reply(
 replyToken,
 text
@@ -82,6 +78,7 @@ await axios.post(
 "https://api.line.me/v2/bot/message/reply",
 
 {
+
 replyToken,
 
 messages:[
@@ -94,9 +91,14 @@ text
 },
 
 {
+
 headers:{
-Authorization:`Bearer ${TOKEN}`
+
+Authorization:
+`Bearer ${TOKEN}`
+
 }
+
 }
 
 );
@@ -104,13 +106,17 @@ Authorization:`Bearer ${TOKEN}`
 }catch(err){
 
 console.log(
-err.response?.data ||
+
+err.response?.data
+||
 err.message
+
 );
 
 }
 
 }
+
 
 
 async function push(
@@ -128,10 +134,14 @@ text
 
 };
 
-if(quickReply){
+if(
+quickReply
+){
 
 msg.quickReply={
+
 items:quickReply
+
 };
 
 }
@@ -143,6 +153,7 @@ await axios.post(
 {
 
 to:userId,
+
 messages:[msg]
 
 },
@@ -150,7 +161,10 @@ messages:[msg]
 {
 
 headers:{
-Authorization:`Bearer ${TOKEN}`
+
+Authorization:
+`Bearer ${TOKEN}`
+
 }
 
 }
@@ -160,8 +174,11 @@ Authorization:`Bearer ${TOKEN}`
 }catch(err){
 
 console.log(
-err.response?.data ||
+
+err.response?.data
+||
 err.message
+
 );
 
 }
@@ -169,9 +186,10 @@ err.message
 }
 
 
-// ==========================
+
+// =====================
 // webhook
-// ==========================
+// =====================
 
 app.post(
 "/webhook",
@@ -182,7 +200,9 @@ try{
 const e=
 req.body.events?.[0];
 
-if(!e){
+if(
+!e
+){
 
 return res.sendStatus(
 200
@@ -191,9 +211,13 @@ return res.sendStatus(
 }
 
 if(
+
 e.type!=="message"
+
 ||
+
 e.message.type!=="text"
+
 ){
 
 return res.sendStatus(
@@ -209,9 +233,9 @@ const userId=
 e.source.userId;
 
 
-// ==========================
+// =====================
 // ลงทะเบียน
-// ==========================
+// =====================
 
 if(
 text.startsWith(
@@ -254,7 +278,10 @@ break;
 
 }
 
-if(!child){
+
+if(
+!child
+){
 
 await reply(
 e.replyToken,
@@ -267,6 +294,9 @@ return res.sendStatus(
 
 }
 
+
+// save line user
+
 await axios.patch(
 
 `${DB}/children/${childKey}.json`,
@@ -274,13 +304,48 @@ await axios.patch(
 {
 
 lineUserId:userId,
+
 registered:true,
+
 registeredAt:
 Date.now()
 
 }
 
 );
+
+
+// vaccine text
+
+const vaccines=
+child.vaccines||{};
+
+const vaccineText=
+
+Object.keys(
+vaccines
+).length
+
+?
+
+Object.entries(
+vaccines
+)
+
+.map(
+([k,v])=>
+
+`${k} (${v})`
+
+)
+
+.join("\n")
+
+:
+
+"ไม่มีข้อมูล";
+
+
 
 await reply(
 
@@ -292,7 +357,9 @@ e.replyToken,
 
 🆔 ${child.hn}
 
-💉 วัคซีน:${vaccineText}
+💉 วัคซีน:
+
+${vaccineText}
 
 📞 ${child.phone||"-"}
 
@@ -303,7 +370,7 @@ e.replyToken,
 );
 
 
-// ส่งติดตาม
+// follow up
 
 setTimeout(
 
@@ -362,7 +429,7 @@ type:"action",
 action:{
 type:"message",
 label:"🚨 รุนแรง",
-text:"อาการ: รุนแรง อาการผื่นขึ้น หายใจไม่ออก"
+text:"อาการ: รุนแรง"
 }
 }
 
@@ -383,9 +450,10 @@ return res.sendStatus(
 }
 
 
-// ==========================
+
+// =====================
 // รับอาการ
-// ==========================
+// =====================
 
 if(
 text.startsWith(
@@ -394,10 +462,14 @@ text.startsWith(
 ){
 
 const symptom=
+
 text.replace(
 "อาการ:",
 ""
-).trim();
+)
+
+.trim();
+
 
 const result=
 await axios.get(
@@ -420,11 +492,13 @@ children[key]
 
 child=
 children[key];
+
 break;
 
 }
 
 }
+
 
 if(child){
 
@@ -433,8 +507,9 @@ child.vaccines||{};
 
 const vaccineText=
 
-Object.keys(vaccines)
-.length
+Object.keys(
+vaccines
+).length
 
 ?
 
@@ -444,7 +519,9 @@ vaccines
 
 .map(
 ([k,v])=>
+
 `${k} (${v})`
+
 )
 
 .join("\n")
@@ -452,6 +529,8 @@ vaccines
 :
 
 "ไม่มีข้อมูล";
+
+
 
 let level=
 "🟢 ปกติ";
@@ -466,11 +545,17 @@ let priority=
 // เฝ้าระวัง
 
 if(
+
 symptom.includes("ไข้ต่ำ")
+
 ||
+
 symptom.includes("ปวด")
+
 ||
+
 symptom.includes("บวม")
+
 ){
 
 level=
@@ -488,9 +573,13 @@ priority=
 // ด่วน
 
 if(
+
 symptom.includes("ไข้สูง")
+
 ||
+
 symptom.includes("รุนแรง")
+
 ){
 
 level=
@@ -505,7 +594,6 @@ priority=
 }
 
 
-// save symptoms
 
 await axios.post(
 
@@ -541,7 +629,6 @@ Date.now()
 );
 
 
-// reply line
 
 await reply(
 
@@ -551,10 +638,15 @@ e.replyToken,
 
 👶 ${child.name}
 
-🩺 อาการ: ${symptom}
+💉 วัคซีน:
 
-ระดับความสำคัญ 📌 
-${level}
+${vaccineText}
+
+🩺 อาการ:
+
+${symptom}
+
+📌 ${level}
 
 🕒 ${thaiTime()}
 
@@ -565,7 +657,8 @@ ${level}
 }
 
 return res.sendStatus(
-200);
+200
+);
 
 }
 
@@ -577,8 +670,11 @@ return res.sendStatus(
 catch(err){
 
 console.log(
-err.response?.data ||
+
+err.response?.data
+||
 err.message
+
 );
 
 return res.sendStatus(
@@ -590,9 +686,10 @@ return res.sendStatus(
 });
 
 
-// ==========================
+
+// =====================
 // start
-// ==========================
+// =====================
 
 const PORT=
 process.env.PORT
