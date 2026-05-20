@@ -358,7 +358,9 @@ return res.sendStatus(
 
 
 
+// ========================
 // รับอาการ
+// ========================
 
 if(
 text.startsWith(
@@ -382,8 +384,7 @@ await axios.get(
 let child=null;
 
 for(
-let key
-in children
+let key in children
 ){
 
 if(
@@ -400,9 +401,115 @@ break;
 
 }
 
+if(child){
+
+// ========================
+// วัคซีน
+// ========================
+
+const vaccines=
+child.vaccines||{};
+
+const vaccineText=
+
+Object.keys(
+vaccines
+).length
+
+?
+
+Object.entries(
+vaccines
+)
+
+.map(
+([k,v])=>
+
+`${k} (${v})`
+
+)
+
+.join("\n")
+
+:
+
+"ไม่มีข้อมูล";
+
+
+// ========================
+// ระดับอาการ
+// ========================
+
+let level=
+"🟢 ปกติ";
+
+let status=
+"ติดตามแล้ว";
+
+let priority=
+3;
+
 if(
-child
+
+symptom.includes(
+"ไข้ต่ำ"
+)
+
+||
+
+symptom.includes(
+"ปวด"
+)
+
+||
+
+symptom.includes(
+"บวม"
+)
+
 ){
+
+level=
+"🟠 เฝ้าระวัง";
+
+status=
+"เฝ้าติดตาม";
+
+priority=
+2;
+
+}
+
+
+if(
+
+symptom.includes(
+"ไข้สูง"
+)
+
+||
+
+symptom.includes(
+"รุนแรง"
+)
+
+){
+
+level=
+"🔴 ต้องติดตามใกล้ชิด";
+
+status=
+"ด่วน";
+
+priority=
+1;
+
+}
+
+
+// ========================
+// บันทึก Firebase
+// ========================
 
 await axios.post(
 
@@ -411,25 +518,24 @@ await axios.post(
 {
 
 name:
-child.name,
+child.name||"-",
 
 hn:
-child.hn,
+child.hn||"-",
 
 phone:
-child.phone,
+child.phone||"-",
+
+vaccines:
+vaccineText,
 
 symptom,
 
-status:
-"รอติดตาม",
+status,
 
-level:
-symptom==="ปกติ"
-?
-"🟢 ปกติ"
-:
-"🟠 ต้องติดตาม",
+level,
+
+priority,
 
 time:
 Date.now()
@@ -438,47 +544,44 @@ Date.now()
 
 );
 
-}
+
+// ========================
+// ตอบ LINE
+// ========================
 
 await reply(
+
 e.replyToken,
-"✅ รับข้อมูลเรียบร้อย"
+
+`✅ รับข้อมูลเรียบร้อย
+
+👶 ${child.name}
+
+🆔 HN:
+${child.hn}
+
+💉 วัคซีน
+
+${vaccineText}
+
+🩺 อาการ
+
+${symptom}
+
+📌 สถานะ
+
+${level}
+
+🕒 ${thaiTime()}
+
+`
+
 );
+
+}
 
 return res.sendStatus(
 200
 );
 
 }
-
-res.sendStatus(
-200
-);
-
-}
-catch(err){
-
-console.log(
-err.response?.data||
-err.message
-);
-
-res.sendStatus(
-500
-);
-
-}
-
-});
-
-
-
-app.listen(
-3000,
-()=>{
-
-console.log(
-"🚀 Server started"
-);
-
-});
