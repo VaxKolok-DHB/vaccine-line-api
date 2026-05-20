@@ -54,9 +54,9 @@ const DB="https://vaccine-dashboard-81107-default-rtdb.asia-southeast1.firebased
 
 
 
-// ========================
+// ==========================
 // helper
-// ========================
+// ==========================
 
 function thaiTime(){
 
@@ -70,14 +70,19 @@ timeZone:"Asia/Bangkok"
 
 }
 
-async function reply(token,text){
+async function reply(
+replyToken,
+text
+){
+
+try{
 
 await axios.post(
 
 "https://api.line.me/v2/bot/message/reply",
 
 {
-replyToken:token,
+replyToken,
 
 messages:[
 {
@@ -96,7 +101,17 @@ Authorization:`Bearer ${TOKEN}`
 
 );
 
+}catch(err){
+
+console.log(
+err.response?.data ||
+err.message
+);
+
 }
+
+}
+
 
 async function push(
 userId,
@@ -104,14 +119,16 @@ text,
 quickReply=null
 ){
 
+try{
+
 let msg={
+
 type:"text",
 text
+
 };
 
-if(
-quickReply
-){
+if(quickReply){
 
 msg.quickReply={
 items:quickReply
@@ -126,27 +143,35 @@ await axios.post(
 {
 
 to:userId,
-
-messages:[
-msg
-]
+messages:[msg]
 
 },
 
 {
 
 headers:{
-Authorization:
-`Bearer ${TOKEN}`
+Authorization:`Bearer ${TOKEN}`
 }
 
 }
 
 );
 
+}catch(err){
+
+console.log(
+err.response?.data ||
+err.message
+);
+
+}
+
 }
 
 
+// ==========================
+// webhook
+// ==========================
 
 app.post(
 "/webhook",
@@ -184,8 +209,9 @@ const userId=
 e.source.userId;
 
 
-
+// ==========================
 // ลงทะเบียน
+// ==========================
 
 if(
 text.startsWith(
@@ -194,9 +220,7 @@ text.startsWith(
 ){
 
 const hn=
-text.split(
-" "
-)[1];
+text.split(" ")[1];
 
 const result=
 await axios.get(
@@ -206,13 +230,11 @@ await axios.get(
 const children=
 result.data||{};
 
-let foundKey=null;
-
 let child=null;
+let childKey=null;
 
 for(
-let key
-in children
+let key in children
 ){
 
 if(
@@ -220,11 +242,11 @@ children[key]
 .hn===hn
 ){
 
-foundKey=
-key;
-
 child=
 children[key];
+
+childKey=
+key;
 
 break;
 
@@ -232,9 +254,7 @@ break;
 
 }
 
-if(
-!foundKey
-){
+if(!child){
 
 await reply(
 e.replyToken,
@@ -249,17 +269,18 @@ return res.sendStatus(
 
 await axios.patch(
 
-`${DB}/children/${foundKey}.json`,
+`${DB}/children/${childKey}.json`,
 
 {
 
-lineUserId:
-userId
+lineUserId:userId,
+registered:true,
+registeredAt:
+Date.now()
 
 }
 
 );
-
 
 await reply(
 
@@ -280,9 +301,10 @@ e.replyToken,
 );
 
 
-// ส่งติดตามหลัง 30 วินาที
+// ส่งติดตาม
 
 setTimeout(
+
 async()=>{
 
 await push(
@@ -347,7 +369,9 @@ text:"อาการ: รุนแรง"
 );
 
 },
+
 30000
+
 );
 
 return res.sendStatus(
@@ -357,10 +381,9 @@ return res.sendStatus(
 }
 
 
-
-// ========================
+// ==========================
 // รับอาการ
-// ========================
+// ==========================
 
 if(
 text.startsWith(
@@ -374,12 +397,13 @@ text.replace(
 ""
 ).trim();
 
-const children=
-(
+const result=
 await axios.get(
 `${DB}/children.json`
-)
-).data||{};
+);
+
+const children=
+result.data||{};
 
 let child=null;
 
@@ -394,7 +418,6 @@ children[key]
 
 child=
 children[key];
-
 break;
 
 }
@@ -403,18 +426,13 @@ break;
 
 if(child){
 
-// ========================
-// วัคซีน
-// ========================
-
 const vaccines=
 child.vaccines||{};
 
 const vaccineText=
 
-Object.keys(
-vaccines
-).length
+Object.keys(vaccines)
+.length
 
 ?
 
@@ -424,9 +442,7 @@ vaccines
 
 .map(
 ([k,v])=>
-
 `${k} (${v})`
-
 )
 
 .join("\n")
@@ -434,11 +450,6 @@ vaccines
 :
 
 "ไม่มีข้อมูล";
-
-
-// ========================
-// ระดับอาการ
-// ========================
 
 let level=
 "🟢 ปกติ";
@@ -449,24 +460,15 @@ let status=
 let priority=
 3;
 
+
+// เฝ้าระวัง
+
 if(
-
-symptom.includes(
-"ไข้ต่ำ"
-)
-
+symptom.includes("ไข้ต่ำ")
 ||
-
-symptom.includes(
-"ปวด"
-)
-
+symptom.includes("ปวด")
 ||
-
-symptom.includes(
-"บวม"
-)
-
+symptom.includes("บวม")
 ){
 
 level=
@@ -481,18 +483,12 @@ priority=
 }
 
 
+// ด่วน
+
 if(
-
-symptom.includes(
-"ไข้สูง"
-)
-
+symptom.includes("ไข้สูง")
 ||
-
-symptom.includes(
-"รุนแรง"
-)
-
+symptom.includes("รุนแรง")
 ){
 
 level=
@@ -507,9 +503,7 @@ priority=
 }
 
 
-// ========================
-// บันทึก Firebase
-// ========================
+// save symptoms
 
 await axios.post(
 
@@ -518,13 +512,13 @@ await axios.post(
 {
 
 name:
-child.name||"-",
+child.name,
 
 hn:
-child.hn||"-",
+child.hn,
 
 phone:
-child.phone||"-",
+child.phone,
 
 vaccines:
 vaccineText,
@@ -545,9 +539,7 @@ Date.now()
 );
 
 
-// ========================
-// ตอบ LINE
-// ========================
+// reply line
 
 await reply(
 
@@ -557,20 +549,15 @@ e.replyToken,
 
 👶 ${child.name}
 
-🆔 HN:
-${child.hn}
-
-💉 วัคซีน
+💉 วัคซีน:
 
 ${vaccineText}
 
-🩺 อาการ
+🩺 อาการ:
 
 ${symptom}
 
-📌 สถานะ
-
-${level}
+📌 ${level}
 
 🕒 ${thaiTime()}
 
@@ -581,7 +568,46 @@ ${level}
 }
 
 return res.sendStatus(
+200);
+
+}
+
+return res.sendStatus(
 200
 );
 
 }
+catch(err){
+
+console.log(
+err.response?.data ||
+err.message
+);
+
+return res.sendStatus(
+500
+);
+
+}
+
+});
+
+
+// ==========================
+// start
+// ==========================
+
+const PORT=
+process.env.PORT
+||
+3000;
+
+app.listen(
+PORT,
+()=>{
+
+console.log(
+`🚀 Running on ${PORT}`
+);
+
+});
