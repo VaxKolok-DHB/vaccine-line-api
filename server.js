@@ -78,7 +78,6 @@ await axios.post(
 "https://api.line.me/v2/bot/message/reply",
 
 {
-
 replyToken,
 
 messages:[
@@ -91,14 +90,10 @@ text
 },
 
 {
-
 headers:{
-
 Authorization:
 `Bearer ${TOKEN}`
-
 }
-
 }
 
 );
@@ -106,17 +101,13 @@ Authorization:
 }catch(err){
 
 console.log(
-
-err.response?.data
-||
+err.response?.data||
 err.message
-
 );
 
 }
 
 }
-
 
 
 async function push(
@@ -139,9 +130,7 @@ quickReply
 ){
 
 msg.quickReply={
-
 items:quickReply
-
 };
 
 }
@@ -153,7 +142,6 @@ await axios.post(
 {
 
 to:userId,
-
 messages:[msg]
 
 },
@@ -161,10 +149,8 @@ messages:[msg]
 {
 
 headers:{
-
 Authorization:
 `Bearer ${TOKEN}`
-
 }
 
 }
@@ -174,17 +160,13 @@ Authorization:
 }catch(err){
 
 console.log(
-
-err.response?.data
-||
+err.response?.data||
 err.message
-
 );
 
 }
 
 }
-
 
 
 // =====================
@@ -203,27 +185,15 @@ req.body.events?.[0];
 if(
 !e
 ){
-
-return res.sendStatus(
-200
-);
-
+return res.sendStatus(200);
 }
 
 if(
-
 e.type!=="message"
-
 ||
-
 e.message.type!=="text"
-
 ){
-
-return res.sendStatus(
-200
-);
-
+return res.sendStatus(200);
 }
 
 const text=
@@ -278,7 +248,6 @@ break;
 
 }
 
-
 if(
 !child
 ){
@@ -314,13 +283,11 @@ Date.now()
 
 );
 
-if(child){
+
+// 🔥 วัคซีนล่าสุด
 
 const vaccines=
 child.vaccines||{};
-
-
-// 🔥 หาวันล่าสุด
 
 const latestDate=
 
@@ -332,8 +299,6 @@ vaccines
 
 .pop();
 
-
-// 🔥 เอาเฉพาะวัคซีนล่าสุด
 
 const latestVaccines=
 
@@ -370,6 +335,7 @@ latestVaccines
 "ไม่มีข้อมูล";
 
 
+
 await reply(
 
 e.replyToken,
@@ -380,7 +346,7 @@ e.replyToken,
 
 🆔 ${child.hn}
 
-💉 วัคซีน:
+💉 วัคซีนล่าสุด
 
 ${vaccineText}
 
@@ -399,11 +365,13 @@ setTimeout(
 
 async()=>{
 
+try{
+
 await push(
 
 userId,
 
-`📋 แบบติดตามอาการ
+`📋 ติดตามอาการ
 
 👶 ${child.name}
 
@@ -460,6 +428,15 @@ text:"อาการ: รุนแรง"
 
 );
 
+}catch(err){
+
+console.log(
+"followup:",
+err.message
+);
+
+}
+
 },
 
 30000
@@ -471,7 +448,6 @@ return res.sendStatus(
 );
 
 }
-
 
 
 // =====================
@@ -492,7 +468,6 @@ text.replace(
 )
 
 .trim();
-
 
 const result=
 await axios.get(
@@ -515,38 +490,49 @@ children[key]
 
 child=
 children[key];
-
 break;
 
 }
 
 }
 
-
 if(child){
 
 const vaccines=
 child.vaccines||{};
 
-const vaccineText=
+const latestDate=
 
-Object.keys(
+Object.values(
 vaccines
-).length
+)
 
-?
+.sort()
+
+.pop();
+
+const latestVaccines=
 
 Object.entries(
 vaccines
 )
 
+.filter(
+([k,v])=>
+v===latestDate
+);
+
+const vaccineText=
+
+latestVaccines.length
+
+?
+
+latestVaccines
 .map(
 ([k,v])=>
-
 `${k} (${v})`
-
 )
-
 .join("\n")
 
 :
@@ -565,20 +551,12 @@ let priority=
 3;
 
 
-// เฝ้าระวัง
-
 if(
-
 symptom.includes("ไข้ต่ำ")
-
 ||
-
 symptom.includes("ปวด")
-
 ||
-
 symptom.includes("บวม")
-
 ){
 
 level=
@@ -593,16 +571,10 @@ priority=
 }
 
 
-// ด่วน
-
 if(
-
 symptom.includes("ไข้สูง")
-
 ||
-
 symptom.includes("รุนแรง")
-
 ){
 
 level=
@@ -617,40 +589,27 @@ priority=
 }
 
 
-
 await axios.post(
 
 `${DB}/symptoms.json`,
 
 {
 
-name:
-child.name,
-
-hn:
-child.hn,
-
-phone:
-child.phone,
-
-vaccines:
-vaccineText,
+name:child.name,
+hn:child.hn,
+phone:child.phone,
+vaccines:vaccineText,
 
 symptom,
-
 status,
-
 level,
-
 priority,
 
-time:
-Date.now()
+time:Date.now()
 
 }
 
 );
-
 
 
 await reply(
@@ -665,9 +624,7 @@ e.replyToken,
 
 ${vaccineText}
 
-🩺 อาการ:
-
-${symptom}
+🩺 ${symptom}
 
 📌 ${level}
 
@@ -685,15 +642,16 @@ return res.sendStatus(
 
 }
 
+return res.sendStatus(
+200
+);
 
+}
 catch(err){
 
 console.log(
-
-err.response?.data
-||
+err.response?.data||
 err.message
-
 );
 
 return res.sendStatus(
@@ -705,15 +663,12 @@ return res.sendStatus(
 });
 
 
-
 // =====================
 // start
 // =====================
 
 const PORT=
-process.env.PORT
-||
-3000;
+process.env.PORT||3000;
 
 app.listen(
 PORT,
