@@ -292,6 +292,8 @@ e.replyToken,
 
 🆔 ${child.hn}
 
+💉 วัคซีน:${vaccineText}
+
 📞 ${child.phone||"-"}
 
 🕒 ${thaiTime()}
@@ -360,7 +362,7 @@ type:"action",
 action:{
 type:"message",
 label:"🚨 รุนแรง",
-text:"อาการ: รุนแรง"
+text:"อาการ: รุนแรง อาการผื่นขึ้น หายใจไม่ออก"
 }
 }
 
@@ -549,15 +551,10 @@ e.replyToken,
 
 👶 ${child.name}
 
-💉 วัคซีน:
+🩺 อาการ: ${symptom}
 
-${vaccineText}
-
-🩺 อาการ:
-
-${symptom}
-
-📌 ${level}
+ระดับความสำคัญ 📌 
+${level}
 
 🕒 ${thaiTime()}
 
