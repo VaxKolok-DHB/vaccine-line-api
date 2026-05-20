@@ -589,9 +589,10 @@ priority=
 }
 
 
-await axios.post(
-`${DB}/symptoms.json`,
+await axios.put(
+`${DB}/symptoms/${childKey}.json`,
 {
+    
 
 name:
 child.name||"-",
@@ -603,9 +604,7 @@ phone:
 child.phone||"-",
 
 // 🔥 เพิ่มตัวนี้
-vaccines:
-
-vaccines,
+vaccines: vaccines,
 
 symptom:
 
@@ -626,7 +625,26 @@ Date.now()
 }
 );
 
+let childKey=null;
 
+for(let key in children){
+
+if(
+children[key]
+.lineUserId===userId
+){
+
+child=
+children[key];
+
+childKey=
+key;
+
+break;
+
+}
+
+}
 await reply(
 
 e.replyToken,
@@ -635,9 +653,7 @@ e.replyToken,
 
 👶 ${child.name}
 
-💉 วัคซีน:
-
-${vaccineText}
+💉 วัคซีน:${vaccineText}
 
 🩺 ${symptom}
 
