@@ -590,25 +590,40 @@ priority=
 
 
 await axios.post(
-
 `${DB}/symptoms.json`,
-
 {
 
-name:child.name,
-hn:child.hn,
-phone:child.phone,
-vaccines:vaccineText,
+name:
+child.name||"-",
 
-symptom,
+hn:
+child.hn||"-",
+
+phone:
+child.phone||"-",
+
+// 🔥 เพิ่มตัวนี้
+vaccines:
+
+vaccines,
+
+symptom:
+
+symptom||
+
+"ยังไม่ระบุ",
+
 status,
+
 level,
+
 priority,
 
-time:Date.now()
+time:
+
+Date.now()
 
 }
-
 );
 
 
