@@ -393,37 +393,7 @@ text:"ข้อมูลไม่ถูกต้อง"
 ]
 
 );
-if(text==="ยืนยันข้อมูล"){
 
-await reply(
-
-e.replyToken,
-
-`✅ ยืนยันสำเร็จ
-
-ระบบจะติดตามอาการหลังฉีดวัคซีนของบุตรโดยอัตโนมัติ`
-
-);
-
-return res.sendStatus(200);
-
-}
-
-
-
-if(text==="ข้อมูลไม่ถูกต้อง"){
-
-await reply(
-
-e.replyToken,
-
-`❌ กรุณาติดต่อเจ้าหน้าที่`
-
-);
-
-return res.sendStatus(200);
-
-}
 
 // follow up
 
@@ -696,7 +666,51 @@ time:Date.now()
 });
 
 }
+// 🔥 ทำงานต่ออัตโนมัติ
 
+let advice="";
+
+if(level.includes("🟢")){
+
+advice=
+"✅ อาการอยู่ในเกณฑ์ปกติ\nให้สังเกตอาการต่อที่บ้าน";
+
+}
+
+else if(level.includes("🟠")){
+
+advice=
+"⚠️ ควรเฝ้าระวังอาการ\nวัดไข้และสังเกตอาการทุก 4 ชั่วโมง";
+
+}
+
+else if(level.includes("🔴")){
+
+advice=
+"🚨 ควรติดต่อเจ้าหน้าที่หรือพบแพทย์";
+
+
+// ส่งแจ้งเตือน Admin
+
+await push(
+
+"USER_ID_ADMIN",
+
+`🚨 แจ้งเตือนอาการรุนแรง
+
+👶 ${child.name}
+
+🆔 ${child.hn}
+
+🩺 ${symptom}
+
+📞 ${child.phone}
+
+🕒 ${thaiTime()}`
+
+);
+
+}
 
 await reply(
 
