@@ -47,7 +47,7 @@ console.error(
 process.exit(1);
 
 }
-const DB="https://vaccine-dashboard-81107-default-rtdb.asia-southeast1.firebasedatabase.app";
+const DB="https://vaccine-dashboard-bc687-default-rtdb.firebaseio.com";
 
 // =====================
 // helper
