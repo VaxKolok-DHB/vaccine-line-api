@@ -70,20 +70,13 @@ timeZone:"Asia/Bangkok"
 
 }
 
-
-async function reply(
-token,
-text
-){
-
-try{
+async function reply(token,text){
 
 await axios.post(
 
 "https://api.line.me/v2/bot/message/reply",
 
 {
-
 replyToken:token,
 
 messages:[
@@ -96,28 +89,14 @@ text
 },
 
 {
-
 headers:{
-Authorization:
-`Bearer ${TOKEN}`
+Authorization:`Bearer ${TOKEN}`
 }
-
 }
 
 );
 
-}catch(err){
-
-console.log(
-err.response?.data||
-err.message
-);
-
 }
-
-}
-
-
 
 async function push(
 userId,
@@ -125,13 +104,9 @@ text,
 quickReply=null
 ){
 
-try{
-
 let msg={
-
 type:"text",
 text
-
 };
 
 if(
@@ -169,22 +144,9 @@ Authorization:
 
 );
 
-}catch(err){
-
-console.log(
-err.response?.data||
-err.message
-);
-
-}
-
 }
 
 
-
-// ========================
-// WEBHOOK
-// ========================
 
 app.post(
 "/webhook",
@@ -192,21 +154,16 @@ async(req,res)=>{
 
 try{
 
-const events=
-req.body.events||[];
+const e=
+req.body.events?.[0];
 
-if(
-!events.length
-){
+if(!e){
 
 return res.sendStatus(
 200
 );
 
 }
-
-const e=
-events[0];
 
 if(
 e.type!=="message"
@@ -228,9 +185,7 @@ e.source.userId;
 
 
 
-// ========================
 // ลงทะเบียน
-// ========================
 
 if(
 text.startsWith(
@@ -239,17 +194,21 @@ text.startsWith(
 ){
 
 const hn=
-text.split(" ")[1];
+text.split(
+" "
+)[1];
 
-const resData=
+const result=
 await axios.get(
 `${DB}/children.json`
 );
 
 const children=
-resData.data||{};
+result.data||{};
 
 let foundKey=null;
+
+let child=null;
 
 for(
 let key
@@ -261,13 +220,17 @@ children[key]
 .hn===hn
 ){
 
-foundKey=key;
+foundKey=
+key;
+
+child=
+children[key];
+
 break;
 
 }
 
 }
-
 
 if(
 !foundKey
@@ -275,7 +238,7 @@ if(
 
 await reply(
 e.replyToken,
-"❌ ไม่พบข้อมูลเด็ก"
+"❌ ไม่พบข้อมูล"
 );
 
 return res.sendStatus(
@@ -284,10 +247,6 @@ return res.sendStatus(
 
 }
 
-
-const c=
-children[foundKey];
-
 await axios.patch(
 
 `${DB}/children/${foundKey}.json`,
@@ -295,54 +254,11 @@ await axios.patch(
 {
 
 lineUserId:
-userId,
-
-registered:
-true,
-
-registeredAt:
-new Date()
-.toISOString(),
-
-followupStatus:
-"🟡 รอติดตาม"
+userId
 
 }
 
 );
-
-
-// วัคซีน
-
-const vaccines=
-c.vaccines||{};
-
-const vaccineText=
-
-Object.keys(
-vaccines
-).length
-
-?
-
-Object.entries(
-vaccines
-)
-
-.map(
-([k,v])=>
-
-`${k}
-(${v})`
-
-)
-
-.join("\n")
-
-:
-
-"ยังไม่มีข้อมูล";
-
 
 
 await reply(
@@ -351,42 +267,23 @@ e.replyToken,
 
 `✅ ลงทะเบียนสำเร็จ
 
-👶 ${c.name||"-"}
+👶 ${child.name}
 
-🆔 ${c.hn||"-"}
+🆔 ${child.hn}
 
-💉
-${vaccineText}
+📞 ${child.phone||"-"}
 
-📞 ${c.phone||"-"}
+🕒 ${thaiTime()}
 
-🕒 ${thaiTime()}`
+`
 
 );
 
 
-
-// ========================
-// follow-up
-// ========================
+// ส่งติดตามหลัง 30 วินาที
 
 setTimeout(
-
 async()=>{
-
-await axios.patch(
-
-`${DB}/children/${foundKey}.json`,
-
-{
-
-followupStatus:
-"🟠 ส่งติดตามแล้ว"
-
-}
-
-);
-
 
 await push(
 
@@ -394,14 +291,9 @@ userId,
 
 `📋 แบบติดตามอาการ
 
-👶 ${c.name}
+👶 ${child.name}
 
-⏰ ${thaiTime()}
-
-ผ่านไปแล้ว
-30 วินาที
-
-มีอาการอย่างไรบ้าง?`,
+มีอาการอย่างไร?`,
 
 [
 
@@ -410,7 +302,7 @@ type:"action",
 action:{
 type:"message",
 label:"😊 ปกติ",
-text:"อาการ: ไม่มีอาการผิดปกติ"
+text:"อาการ: ปกติ"
 }
 },
 
@@ -446,7 +338,7 @@ type:"action",
 action:{
 type:"message",
 label:"🚨 รุนแรง",
-text:"อาการ: อาการรุนแรง"
+text:"อาการ: รุนแรง"
 }
 }
 
@@ -455,9 +347,7 @@ text:"อาการ: อาการรุนแรง"
 );
 
 },
-
 30000
-
 );
 
 return res.sendStatus(
@@ -468,9 +358,7 @@ return res.sendStatus(
 
 
 
-// ========================
 // รับอาการ
-// ========================
 
 if(
 text.startsWith(
@@ -484,6 +372,74 @@ text.replace(
 ""
 ).trim();
 
+const children=
+(
+await axios.get(
+`${DB}/children.json`
+)
+).data||{};
+
+let child=null;
+
+for(
+let key
+in children
+){
+
+if(
+children[key]
+.lineUserId===userId
+){
+
+child=
+children[key];
+
+break;
+
+}
+
+}
+
+if(
+child
+){
+
+await axios.post(
+
+`${DB}/symptoms.json`,
+
+{
+
+name:
+child.name,
+
+hn:
+child.hn,
+
+phone:
+child.phone,
+
+symptom,
+
+status:
+"รอติดตาม",
+
+level:
+symptom==="ปกติ"
+?
+"🟢 ปกติ"
+:
+"🟠 ต้องติดตาม",
+
+time:
+Date.now()
+
+}
+
+);
+
+}
+
 await reply(
 e.replyToken,
 "✅ รับข้อมูลเรียบร้อย"
@@ -495,8 +451,7 @@ return res.sendStatus(
 
 }
 
-
-return res.sendStatus(
+res.sendStatus(
 200
 );
 
@@ -508,7 +463,7 @@ err.response?.data||
 err.message
 );
 
-return res.sendStatus(
+res.sendStatus(
 500
 );
 
@@ -516,15 +471,14 @@ return res.sendStatus(
 
 });
 
-const PORT=
-process.env.PORT || 3000;
+
 
 app.listen(
-PORT,
+3000,
 ()=>{
 
 console.log(
-`🚀 Running on ${PORT}`
+"🚀 Server started"
 );
 
 });
