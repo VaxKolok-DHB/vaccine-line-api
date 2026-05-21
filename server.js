@@ -486,6 +486,7 @@ return res.sendStatus(
 }
 
 
+
 // =====================
 // รับอาการ
 // =====================
@@ -502,7 +503,6 @@ text.replace(
 "อาการ:",
 ""
 )
-
 .trim();
 
 const result=
@@ -514,25 +514,46 @@ const children=
 result.data||{};
 
 let child=null;
+let childKey=null;
 
-for(
-let key in children
-){
+for(let key in children){
 
-if(
-children[key]
-.lineUserId===userId
-){
+   const c=
+   children[key];
 
-child=
-children[key];
-break;
+   if(
+      c.lineUserId===userId
+   ){
+
+      child=c;
+
+      childKey=key;
+
+      break;
+
+   }
 
 }
 
+
+if(!child){
+
+await reply(
+
+e.replyToken,
+
+"❌ ไม่พบข้อมูลการลงทะเบียน"
+
+);
+
+return res.sendStatus(
+200
+);
+
 }
 
-if(child){
+
+// ===== วัคซีนล่าสุด =====
 
 const vaccines=
 child.vaccines||{};
@@ -567,8 +588,11 @@ latestVaccines.length
 latestVaccines
 .map(
 ([k,v])=>
+
 `${k} (${v})`
+
 )
+
 .join("\n")
 
 :
@@ -576,6 +600,9 @@ latestVaccines
 "ไม่มีข้อมูล";
 
 
+
+
+// ===== ระดับอาการ =====
 
 let level=
 "🟢 ปกติ";
@@ -588,11 +615,23 @@ let priority=
 
 
 if(
-symptom.includes("ไข้ต่ำ")
+
+symptom.includes(
+"ไข้ต่ำ"
+)
+
 ||
-symptom.includes("ปวด")
+
+symptom.includes(
+"ปวด"
+)
+
 ||
-symptom.includes("บวม")
+
+symptom.includes(
+"บวม"
+)
+
 ){
 
 level=
@@ -607,10 +646,19 @@ priority=
 }
 
 
+
 if(
-symptom.includes("ไข้สูง")
+
+symptom.includes(
+"ไข้สูง"
+)
+
 ||
-symptom.includes("รุนแรง")
+
+symptom.includes(
+"รุนแรง"
+)
+
 ){
 
 level=
@@ -624,93 +672,77 @@ priority=
 
 }
 
-let child=null;
-let childKey=null;
 
-for(let key in children){
 
-   if(children[key].lineUserId===userId){
+// ===== บันทึก Firebase =====
 
-      child=children[key];
-      childKey=key;
-      break;
+await axios.patch(
 
-   }
-
-}
-
-if(child){
-
-await axios.put(
 `${DB}/symptoms/${childKey}.json`,
+
 {
 
-name:child.name||"-",
+symptom:
+symptom,
 
-hn:child.hn||"-",
+status:
+status,
 
-phone:child.phone||"-",
+level:
+level,
 
-vaccines:child.vaccines||{},
+priority:
+priority,
 
-symptom:symptom,
+assignedTo:
+"",
 
-status:status,
-
-level:level,
-
-priority:priority,
-
-time:Date.now()
-
-});
+time:
+Date.now()
 
 }
-// 🔥 ทำงานต่ออัตโนมัติ
-
-let advice="";
-
-if(level.includes("🟢")){
-
-advice=
-"✅ อาการอยู่ในเกณฑ์ปกติ\nให้สังเกตอาการต่อที่บ้าน";
-
-}
-
-else if(level.includes("🟠")){
-
-advice=
-"⚠️ ควรเฝ้าระวังอาการ\nวัดไข้และสังเกตอาการทุก 4 ชั่วโมง";
-
-}
-
-else if(level.includes("🔴")){
-
-advice=
-"🚨 ควรติดต่อเจ้าหน้าที่หรือพบแพทย์";
-
-
-// ส่งแจ้งเตือน Admin
-
-await push(
-
-"USER_ID_ADMIN",
-
-`🚨 แจ้งเตือนอาการรุนแรง
-
-👶 ${child.name}
-
-🆔 ${child.hn}
-
-🩺 ${symptom}
-
-📞 ${child.phone}
-
-🕒 ${thaiTime()}`
 
 );
 
+
+// ===== คำแนะนำ =====
+
+let advice="";
+
+
+if(
+level.includes(
+"🟢"
+)
+){
+
+advice=
+"✅ อาการปกติ\nให้สังเกตอาการต่อ";
+
 }
+
+else if(
+level.includes(
+"🟠"
+)
+){
+
+advice=
+"⚠️ ควรเฝ้าระวัง\nวัดไข้ทุก 4 ชั่วโมง";
+
+}
+
+else{
+
+
+advice=
+"🚨 พบอาการรุนแรง\nรอเจ้าหน้าที่รับเคส";
+
+
+}
+
+
+// ===== ตอบ LINE =====
 
 await reply(
 
@@ -720,29 +752,22 @@ e.replyToken,
 
 👶 ${child.name}
 
-💉 วัคซีน:${vaccineText}
+💉 ${vaccineText}
 
 🩺 ${symptom}
 
 📌 ${level}
 
-🕒 ${thaiTime()}
+${advice}
 
-`
-
+🕒 ${thaiTime()}`
 );
-
-}
 
 return res.sendStatus(
 200
 );
 
 }
-
-return res.sendStatus(
-200
-);
 
 }
 catch(err){
