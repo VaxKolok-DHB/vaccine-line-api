@@ -52,6 +52,13 @@ const DB="https://vaccine-dashboard-bc687-default-rtdb.firebaseio.com";
 // =====================
 // helper
 // =====================
+// followStep
+// normalCount
+// nextFollowUp
+// closedAt
+// getNextFollowTime()
+// autoFollowUp()
+// setInterval(autoFollowUp,...)
 
 function thaiTime(){
 
@@ -232,16 +239,10 @@ for(
 let key in children
 ){
 
-if(
-children[key]
-.hn===hn
-){
+if(children[key].hn===hn){
 
-child=
-children[key];
-
-childKey=
-key;
+child=children[key];
+childKey=key;
 
 break;
 
@@ -266,133 +267,32 @@ return res.sendStatus(
 
 
 // save line user
-
 await axios.patch(
-
-`${DB}/children/${childKey}.json`,
-
+`${DB}/symptoms/${childKey}.json`,
 {
+followStep:1,
+normalCount:0,
+nextFollowUp:Date.now() + 60000,
 
-lineUserId:userId,
+name: child.name || "",
+hn: child.hn || "",
+cid: child.cid || "",
+phone: child.phone || "",
+birth: child.birth || "",
 
-registered:true,
+vaccines: child.vaccines || {},
 
-registeredAt:
-Date.now()
+symptom:symptom,
+status:status,
+level:level,
+priority:priority,
+
+assignedTo:"",
+time:Date.now()
 
 }
-
 );
 
-
-// 🔥 วัคซีนล่าสุด
-
-const vaccines=
-child.vaccines||{};
-
-const latestDate=
-
-Object.values(
-vaccines
-)
-
-.sort()
-
-.pop();
-
-
-const latestVaccines=
-
-Object.entries(
-vaccines
-)
-
-.filter(
-([k,v])=>
-
-v===latestDate
-);
-
-
-const vaccineText=
-
-latestVaccines.length
-
-?
-
-latestVaccines
-
-.map(
-([k,v])=>
-
-`${k} (${v})`
-
-)
-
-.join("\n")
-
-:
-
-"ไม่มีข้อมูล";
-
-
-await reply(
-
-e.replyToken,
-
-`✅ ลงทะเบียนสำเร็จ
-
-👶 ${child.name}
-
-🆔 ${child.hn}
-
-💉 วัคซีนล่าสุด
-
-${vaccineText}
-
-📞 ${child.phone||"-"}
-
-🕒 ${thaiTime()}
-
-ข้อมูลนี้เป็นข้อมูลบุตรของท่านหรือไม่
-
-ตอบ:
-
-✅ ใช่
-
-❌ ไม่ใช่
-`
-
-);
-await push(
-
-userId,
-
-"กรุณาตรวจสอบข้อมูล",
-
-[
-
-{
-type:"action",
-action:{
-type:"message",
-label:"✅ ใช่",
-text:"ยืนยันข้อมูล"
-}
-},
-
-{
-type:"action",
-action:{
-type:"message",
-label:"❌ ไม่ใช่",
-text:"ข้อมูลไม่ถูกต้อง"
-}
-}
-
-]
-
-);
 
 
 // follow up
@@ -491,27 +391,41 @@ return res.sendStatus(
 // รับอาการ
 // =====================
 
-if(
-text.startsWith(
-"อาการ:"
-)
-){
+if(text.startsWith("อาการ:"))
 
-const symptom=
+{
 
-text.replace(
-"อาการ:",
-""
-)
-.trim();
+const symptom = text.replace("อาการ:","").trim();
+const symptomRef = await axios.get(`${DB}/symptoms/${childKey}.json`);
 
-const result=
-await axios.get(
-`${DB}/children.json`
+await axios.patch(
+`${DB}/symptoms/${childKey}.json`,
+{
+ name: child.name || "",
+ hn: child.hn || "",
+
+ symptom:symptom,
+ status:status,
+ level:level,
+ priority:priority,
+
+ followStep:step,
+ normalCount:normalCount,
+ nextFollowUp:nextFollowUp,
+
+ assignedTo:"",
+ time:Date.now()
+}
 );
 
-const children=
-result.data||{};
+
+
+
+
+const follow = symptomRef.data || {};
+
+const result = await axios.get(`${DB}/children.json`);
+const children = result.data||{};
 
 let child=null;
 let childKey=null;
@@ -604,142 +518,75 @@ latestVaccines
 
 // ===== ระดับอาการ =====
 
-let level=
-"🟢 ปกติ";
+let level = "🟢 ปกติ";
 
-let status=
-"ติดตามแล้ว";
+let status = "ติดตามแล้ว";
 
-let priority=
-3;
+let priority = 3;
 
 
-if(
-
-symptom.includes(
-"ไข้ต่ำ"
-)
-
-||
-
-symptom.includes(
-"ปวด"
-)
-
-||
-
-symptom.includes(
-"บวม"
-)
-
-){
-
-level=
-"🟠 เฝ้าระวัง";
-
-status=
-"เฝ้าติดตาม";
-
-priority=
-2;
+if( symptom.includes("ไข้ต่ำ") ||symptom.includes("ปวด") ||symptom.includes("บวม"))
+    
+    {level = " 🟠 เฝ้าระวัง"; 
+        
+        status = "เฝ้าติดตาม";
+        priority = 2;
 
 }
 
-
-
-if(
-
-symptom.includes(
-"ไข้สูง"
-)
-
-||
-
-symptom.includes(
-"รุนแรง"
-)
-
-){
-
-level=
-"🔴 ต้องติดตามใกล้ชิด";
-
-status=
-"ด่วน";
-
-priority=
-1;
+if(symptom.includes("ไข้สูง") || symptom.includes("รุนแรง"))
+    
+    {level = " 🔴 ต้องติดตามใกล้ชิด"; status = "ด่วน";
+    
+        priority = 1;
 
 }
 
 
 
 // ===== บันทึก Firebase =====
-
 await axios.patch(
-
 `${DB}/symptoms/${childKey}.json`,
-
 {
 
-symptom:
-symptom,
+name: child.name || "",
+hn: child.hn || "",
+cid: child.cid || "",
+phone: child.phone || "",
+birth: child.birth || "",
 
-status:
-status,
+vaccines: child.vaccines || {},
 
-level:
-level,
+symptom:symptom,
 
-priority:
-priority,
+status:status,
 
-assignedTo:
-"",
+level:level,
 
-time:
-Date.now()
+priority:priority,
+
+assignedTo:"",
+
+time:Date.now(),
+updatedAt: Date.now()
 
 }
-
 );
-
 
 // ===== คำแนะนำ =====
 
 let advice="";
 
 
-if(
-level.includes(
-"🟢"
-)
-){
+if(level.includes( "🟢")){ advice = "✅ อาการปกติ\nให้สังเกตอาการต่อ";}
 
-advice=
-"✅ อาการปกติ\nให้สังเกตอาการต่อ";
+else 
+    if(level.includes("🟠"))
+        
+    { advice = "⚠️ ควรเฝ้าระวัง\nวัดไข้ทุก 4 ชั่วโมง";}
 
-}
-
-else if(
-level.includes(
-"🟠"
-)
-){
-
-advice=
-"⚠️ ควรเฝ้าระวัง\nวัดไข้ทุก 4 ชั่วโมง";
-
-}
-
-else{
-
-
-advice=
-"🚨 พบอาการรุนแรง\nรอเจ้าหน้าที่รับเคส";
-
-
-}
+else
+    {advice= " 🚨 พบอาการรุนแรง\nรอเจ้าหน้าที่รับเคส";}
 
 
 // ===== ตอบ LINE =====
@@ -760,26 +607,18 @@ e.replyToken,
 
 ${advice}
 
-🕒 ${thaiTime()}`
-);
+🕒 ${thaiTime()}`);
 
-return res.sendStatus(
-200
-);
+return res.sendStatus(200);
 
-}
+}}
 
-}
 catch(err){
 
 console.log(
-err.response?.data||
-err.message
-);
+err.response?.data||err.message);
 
-return res.sendStatus(
-500
-);
+return res.sendStatus(500);
 
 }
 
@@ -790,15 +629,15 @@ return res.sendStatus(
 // start
 // =====================
 
-const PORT=
-process.env.PORT||3000;
+const PORT = process.env.PORT||3000;
 
-app.listen(
-PORT,
-()=>{
-
-console.log(
-`🚀 Running on ${PORT}`
+app.listen( PORT,()=>{
+setInterval(
+ autoFollowUp,
+ 5 * 60 * 1000
 );
+console.log(`🚀 Running on ${PORT}`);
 
 });
+
+
