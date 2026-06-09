@@ -126,18 +126,28 @@ app.post("/webhook", async (req, res) => {
     console.log(`📩 [${userId}] "${text}"`);
 
     // ===== ลงทะเบียน HN =====
-    if (text.startsWith("ลงทะเบียน")) {
-      const hn = text.replace("ลงทะเบียน", "").trim();
-      if (!hn) {
-        await reply(e.replyToken, "❌ กรุณาระบุ HN เช่น:\nลงทะเบียน 12345");
-        return;
-      }
+    if (/^ลงทะเบียน/i.test(text)) {
 
+  const hn = text
+    .replace(/^ลงทะเบียน\s*:?\s*/i, "")
+    .replace(/^hn\s*/i, "")
+    .trim();
+
+  if (!hn) {
+    await reply(
+      e.replyToken,
+      "❌ กรุณาระบุ HN เช่น:\nลงทะเบียน 12345"
+    );
+    return;
+  }
+
+  console.log("HN =", hn);
       const children = await fbGet("children") || {};
       const matches  = [];
       for (const key in children) {
         if (String(children[key].hn || "").trim() === hn) {
           matches.push({ key, ...children[key] });
+
         }
       }
 
