@@ -23,12 +23,11 @@ function thaiTime() {
   return new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" });
 }
 
-// 🔥 แก้ไข: delay ที่ถูกต้อง (ใช้ env override ได้สำหรับ test)
 const FOLLOW_DELAYS = {
-  1: parseInt(process.env.DELAY_1) || 30    * 1000,           // 30 วินาที
-  2: parseInt(process.env.DELAY_2) || 1     * 60 * 60 * 1000, // 1 ชั่วโมง
-  3: parseInt(process.env.DELAY_3) || 24    * 60 * 60 * 1000, // 24 ชั่วโมง
-  4: parseInt(process.env.DELAY_4) || 48    * 60 * 60 * 1000, // 48 ชั่วโมง
+  1: parseInt(process.env.DELAY_1) || 30 * 1000,
+  2: parseInt(process.env.DELAY_2) || 1  * 60 * 60 * 1000,
+  3: parseInt(process.env.DELAY_3) || 24 * 60 * 60 * 1000,
+  4: parseInt(process.env.DELAY_4) || 48 * 60 * 60 * 1000,
 };
 
 function getNextFollowTime(step) {
@@ -52,15 +51,12 @@ async function fbGet(path) {
   const r = await axios.get(`${DB}/${path}.json`);
   return r.data || null;
 }
-
 async function fbSet(path, data) {
   await axios.put(`${DB}/${path}.json`, data);
 }
-
 async function fbPatch(path, data) {
   await axios.patch(`${DB}/${path}.json`, data);
 }
-
 async function fbDelete(path) {
   await axios.delete(`${DB}/${path}.json`);
 }
@@ -113,45 +109,48 @@ async function push(userId, text, quickReply = null) {
 // Webhook
 // =====================
 app.post("/webhook", async (req, res) => {
-  res.sendStatus(200); // ตอบ LINE ก่อนทันที ป้องกัน timeout
+  res.sendStatus(200);
 
   try {
     const e = req.body.events?.[0];
     if (!e) return;
+
+    // --- follow event ---
     if (e.type === "follow") {
-  await push(e.source.userId, "👋 ยินดีต้อนรับสู่ระบบ VaxKolok 🏥\n\nกรุณาลงทะเบียนโดยพิมพ์:\nลงทะเบียน [HN]\n\nตัวอย่าง: ลงทะเบียน 12345");
-  return;
-}
-if (e.type !== "message" || e.message?.type !== "text") return;
+      await push(e.source.userId,
+        "👋 ยินดีต้อนรับสู่ระบบ VaxKolok 🏥\n\nกรุณาลงทะเบียนโดยพิมพ์:\nลงทะเบียน [HN]\n\nตัวอย่าง: ลงทะเบียน 12345"
+      );
+      return;
+    }
+
+    if (e.type !== "message" || e.message?.type !== "text") return;
 
     const text   = e.message.text.trim();
     const userId = e.source.userId;
 
     console.log(`📩 [${userId}] "${text}"`);
 
-    // ===== ลงทะเบียน HN =====
-if (/^ลงทะเบียน/i.test(text)) {
-  // แก้ตรงนี้
-  const hn = text
-  .replace(/^ลงทะเบียน\s*:?\s*/i, "")  // ตัดคำนำหน้าออกก่อน
-  .replace(/\D/g, "")                   // แล้วค่อยเอาเฉพาะตัวเลข
-  .trim();
+    // ================================================================
+    // 1) ลงทะเบียน HN
+    // ================================================================
+    if (/^ลงทะเบียน/i.test(text)) {
+      const hn = text
+        .replace(/^ลงทะเบียน\s*:?\s*/i, "")
+        .replace(/\D/g, "")
+        .trim();
 
-  if (!hn) {
-    await reply(
-      e.replyToken,
-      "❌ กรุณาระบุ HN เช่น:\nลงทะเบียน 12345"
-    );
-    return;
-  }
+      if (!hn) {
+        await reply(e.replyToken, "❌ กรุณาระบุ HN เช่น:\nลงทะเบียน 12345");
+        return;
+      }
 
-  console.log("HN =", hn);
+      console.log("HN =", hn);
+
       const children = await fbGet("children") || {};
       const matches  = [];
       for (const key in children) {
         if (String(children[key].hn || "").trim() === hn) {
           matches.push({ key, ...children[key] });
-
         }
       }
 
@@ -160,139 +159,135 @@ if (/^ลงทะเบียน/i.test(text)) {
         return;
       }
 
-if (matches.length === 1) {
-  const child = matches[0];
+      if (matches.length === 1) {
+        const child = matches[0];
 
-  // ✅ reply พร้อม Quick Reply ปุ่มยืนยัน/ยกเลิก
-  const msg = {
-    type: "text",
-    text: `🔍 พบข้อมูล\n\n👶 ชื่อ : ${child.name}\n🏥 HN  : ${hn}\n\nกรุณายืนยันข้อมูล`,
-    quickReply: {
-      items: [
-        {
-          type: "action",
-          action: { type: "message", label: "✅ ยืนยัน", text: `__confirm__${hn}__${child.key}` }
+        const msg = {
+          type: "text",
+          text: `🔍 พบข้อมูล\n\n👶 ชื่อ : ${child.name}\n🏥 HN  : ${hn}\n\nกรุณายืนยันข้อมูล`,
+          quickReply: {
+            items: [
+              { type: "action", action: { type: "message", label: "✅ ยืนยัน", text: `__confirm__${hn}__${child.key}` } },
+              { type: "action", action: { type: "message", label: "❌ ยกเลิก", text: `__cancel__` } }
+            ]
+          }
+        };
+
+        await axios.post(
+          "https://api.line.me/v2/bot/message/reply",
+          { replyToken: e.replyToken, messages: [msg] },
+          { headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json" } }
+        );
+
+        await fbSet(`pendingRegister/${userId}`, {
+          hn, childKey: child.key, requireName: false, createdAt: Date.now(),
+        });
+        await fbPatch(`children/${child.key}`, { lineUserId: userId, updatedAt: thaiTime() });
+
+      } else {
+        // หลาย HN — ให้ยืนยันชื่อ
+        await reply(e.replyToken,
+          `⚠️ HN ${hn} มีหลายรายการ\nกรุณายืนยันตัวตนโดยพิมพ์:\n\nยืนยัน ${hn} ชื่อ นามสกุล`
+        );
+        await fbSet(`pendingRegister/${userId}`, {
+          hn, requireName: true, createdAt: Date.now(),
+        });
+      }
+
+      return; // จบ block ลงทะเบียน
+    }
+
+    // ================================================================
+    // 2) ยืนยันการลงทะเบียน (จากปุ่ม Quick Reply)
+    //    format: __confirm__<hn>__<childKey>
+    // ================================================================
+    if (text.startsWith("__confirm__")) {
+      const parts    = text.split("__").filter(Boolean);
+      // parts[0] = "confirm", parts[1] = hn, parts[2] = childKey
+      const hnInput  = parts[1];
+      const childKey = parts[2];
+
+      const children = await fbGet("children") || {};
+      const child    = children[childKey];
+
+      if (!child) {
+        await reply(e.replyToken, "❌ ไม่พบข้อมูล กรุณาติดต่อเจ้าหน้าที่");
+        return;
+      }
+
+      const now       = Date.now();
+      const step1Time = getNextFollowTime(1);
+
+      await fbSet(`symptoms/${childKey}`, {
+        childKey, userId,
+        name: child.name || "",   hn: child.hn || "",
+        cid:  child.cid  || "",   phone:   child.phone   || "",
+        birth: child.birth || "", tambon:  child.tambon  || "",
+        hospital: child.hospital || "", house:   child.house   || "",
+        village:  child.village  || "", vaccines: child.vaccines || {},
+        symptom: "", level: "🟢 ปกติ", status: "รอติดตาม",
+        priority: 3, assignedTo: "", followStep: 1, normalCount: 0,
+        nextFollowUp: step1Time, registeredAt: now,
+        updatedAt: now, closedAt: null, time: now,
+      });
+
+      await fbPatch(`children/${childKey}`, { lineUserId: userId, updatedAt: thaiTime() });
+      await fbDelete(`pendingRegister/${userId}`);
+
+      await replyFlex(e.replyToken, "✅ ลงทะเบียนสำเร็จ", {
+        type: "bubble", size: "kilo",
+        header: {
+          type: "box", layout: "vertical",
+          backgroundColor: "#0e9f6e", paddingAll: "20px",
+          contents: [
+            { type: "text", text: "✅ ลงทะเบียนสำเร็จ", color: "#ffffff", size: "lg", weight: "bold" },
+            { type: "text", text: "ระบบติดตามวัคซีนเด็ก VaxKolok", color: "#d1fae5", size: "xs", margin: "sm" }
+          ]
         },
-        {
-          type: "action",
-          action: { type: "message", label: "❌ ยกเลิก", text: `__cancel__` }
+        body: {
+          type: "box", layout: "vertical", spacing: "md", paddingAll: "20px",
+          contents: [
+            { type: "box", layout: "horizontal", contents: [
+              { type: "text", text: "👶 ชื่อ", size: "sm", color: "#6b7280", flex: 2 },
+              { type: "text", text: child.name || "-", size: "sm", color: "#0d1b2a", weight: "bold", flex: 5, wrap: true }
+            ]},
+            { type: "box", layout: "horizontal", contents: [
+              { type: "text", text: "🏥 HN", size: "sm", color: "#6b7280", flex: 2 },
+              { type: "text", text: hnInput, size: "sm", color: "#0d1b2a", weight: "bold", flex: 5 }
+            ]},
+            { type: "box", layout: "horizontal", contents: [
+              { type: "text", text: "📋 สถานะ", size: "sm", color: "#6b7280", flex: 2 },
+              { type: "text", text: "รอติดตาม", size: "sm", color: "#0e9f6e", weight: "bold", flex: 5 }
+            ]},
+            { type: "separator", margin: "md" },
+            { type: "text", text: "⏱ ระบบจะส่งแบบประเมินอาการใน 30 วินาที", size: "xs", color: "#6b7280", wrap: true, margin: "md" }
+          ]
+        },
+        footer: {
+          type: "box", layout: "vertical", paddingAll: "12px", backgroundColor: "#f9fafb",
+          contents: [{ type: "text", text: `🕒 ${thaiTime()}`, size: "xs", color: "#9ca3af", align: "center" }]
         }
-      ]
+      });
+
+      console.log(`✅ ลงทะเบียนแล้ว: ${child.name} (${hnInput}) childKey=${childKey}`);
+      return;
     }
-  };
 
-  await axios.post(
-    "https://api.line.me/v2/bot/message/reply",
-    { replyToken: e.replyToken, messages: [msg] },
-    { headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json" } }
-  );
-
-  // Firebase ทีหลัง
-  await fbSet(`pendingRegister/${userId}`, {
-    hn, childKey: child.key, requireName: false, createdAt: Date.now(),
-  });
-  await fbPatch(`children/${child.key}`, { lineUserId: userId, updatedAt: thaiTime() });
-  return;
-}
-
-} else {
-  // reply ก่อน
-  await reply(e.replyToken,
-    `⚠️ HN ${hn} มีหลายรายการ\nกรุณายืนยันตัวตนโดยพิมพ์:\n\nยืนยัน ${hn} ชื่อ นามสกุล`);
-  // แล้วค่อย Firebase
-  await fbSet(`pendingRegister/${userId}`, {
-    hn, requireName: true, createdAt: Date.now(),});
-}
-
-    // ===== ยืนยันลงทะเบียน =====
-// ===== ยืนยันลงทะเบียน (จากปุ่ม) =====
-if (text.startsWith("__confirm__")) {
-const parts    = text.split("__").filter(Boolean);
-const hnInput  = parts[1]; // confirm
-const childKey = parts[2]; // key
-} else {
-  // reply ก่อน
-  await reply(e.replyToken,
-    `⚠️ HN ${hn} มีหลายรายการ...`   
-  );
-  const children = await fbGet("children") || {};
-  const child    = children[childKey];
-
-  if (!child) {
-    await reply(e.replyToken, "❌ ไม่พบข้อมูล กรุณาติดต่อเจ้าหน้าที่");
-    return;
-  }
-
-    // 🔥 สร้าง symptoms record ที่ครบถ้วน (key เดียวกับ children)
-    const now       = Date.now();
-    const step1Time = getNextFollowTime(1);
-
-    await fbSet(`symptoms/${childKey}`, {
-    childKey, userId,
-    name: child.name || "", hn: child.hn || "",
-    cid: child.cid || "", phone: child.phone || "",
-    birth: child.birth || "", tambon: child.tambon || "",
-    hospital: child.hospital || "", house: child.house || "",
-    village: child.village || "", vaccines: child.vaccines || {},
-    symptom: "", level: "🟢 ปกติ", status: "รอติดตาม",
-    priority: 3, assignedTo: "", followStep: 1, normalCount: 0,
-    nextFollowUp: step1Time, registeredAt: now,
-    updatedAt: now, closedAt: null, time: now,
-  })
-  
-await fbPatch(`children/${childKey}`, { lineUserId: userId, updatedAt: thaiTime() });
-  await fbDelete(`pendingRegister/${userId}`);
-
-  await replyFlex(e.replyToken, "✅ ลงทะเบียนสำเร็จ", {
-    type: "bubble", size: "kilo",
-    header: {
-      type: "box", layout: "vertical",
-      backgroundColor: "#0e9f6e", paddingAll: "20px",
-      contents: [
-        { type: "text", text: "✅ ลงทะเบียนสำเร็จ", color: "#ffffff", size: "lg", weight: "bold" },
-        { type: "text", text: "ระบบติดตามวัคซีนเด็ก VaxKolok", color: "#d1fae5", size: "xs", margin: "sm" }
-      ]
-    },
-    body: {
-      type: "box", layout: "vertical", spacing: "md", paddingAll: "20px",
-      contents: [
-        { type: "box", layout: "horizontal", contents: [
-          { type: "text", text: "👶 ชื่อ", size: "sm", color: "#6b7280", flex: 2 },
-          { type: "text", text: child.name || "-", size: "sm", color: "#0d1b2a", weight: "bold", flex: 5, wrap: true }
-        ]},
-        { type: "box", layout: "horizontal", contents: [
-          { type: "text", text: "🏥 HN", size: "sm", color: "#6b7280", flex: 2 },
-          { type: "text", text: hnInput, size: "sm", color: "#0d1b2a", weight: "bold", flex: 5 }
-        ]},
-        { type: "box", layout: "horizontal", contents: [
-          { type: "text", text: "📋 สถานะ", size: "sm", color: "#6b7280", flex: 2 },
-          { type: "text", text: "รอติดตาม", size: "sm", color: "#0e9f6e", weight: "bold", flex: 5 }
-        ]},
-        { type: "separator", margin: "md" },
-        { type: "text", text: "⏱ ระบบจะส่งแบบประเมินอาการใน 30 วินาที", size: "xs", color: "#6b7280", wrap: true, margin: "md" }
-      ]
-    },
-    footer: {
-      type: "box", layout: "vertical", paddingAll: "12px", backgroundColor: "#f9fafb",
-      contents: [{ type: "text", text: `🕒 ${thaiTime()}`, size: "xs", color: "#9ca3af", align: "center" }]
+    // ================================================================
+    // 3) ยกเลิกการลงทะเบียน
+    // ================================================================
+    if (text === "__cancel__") {
+      await fbDelete(`pendingRegister/${userId}`);
+      await reply(e.replyToken, "❌ ยกเลิกการลงทะเบียนแล้ว\n\nพิมพ์ ลงทะเบียน [HN] เพื่อเริ่มใหม่");
+      return;
     }
-  });
 
-  console.log(`✅ ลงทะเบียนแล้ว: ${child.name} (${hnInput}) childKey=${childKey}`);
-  return;
-}
-
-// ===== ยกเลิก =====
-if (text === "__cancel__") {
-  await fbDelete(`pendingRegister/${userId}`);
-  await reply(e.replyToken, "❌ ยกเลิกการลงทะเบียนแล้ว\n\nพิมพ์ ลงทะเบียน [HN] เพื่อเริ่มใหม่");
-  return;
-}
-    // ===== รับอาการ =====
+    // ================================================================
+    // 4) รับรายงานอาการ
+    // ================================================================
     if (text.startsWith("อาการ:")) {
       const symptom = text.replace("อาการ:", "").trim();
 
-      // 🔥 หา childKey จาก symptoms/*/userId แทน children
       const symptomsAll = await fbGet("symptoms") || {};
       let childKey = null, follow = null;
 
@@ -305,7 +300,6 @@ if (text === "__cancel__") {
       }
 
       if (!childKey) {
-        // fallback: หาจาก children/lineUserId
         const children = await fbGet("children") || {};
         for (const key in children) {
           if (children[key].lineUserId === userId) {
@@ -324,7 +318,6 @@ if (text === "__cancel__") {
 
       if (symptom === "ปกติ") { normalCount++; } else { normalCount = 0; }
 
-      // ระดับอาการ
       let level = "🟢 ปกติ", status = "ติดตามแล้ว", priority = 3;
       if (symptom.includes("ไข้ต่ำ") || symptom.includes("ปวด") || symptom.includes("บวม")) {
         level = "🟠 เฝ้าระวัง"; status = "เฝ้าติดตาม"; priority = 2;
@@ -339,7 +332,6 @@ if (text === "__cancel__") {
         .filter(([, v]) => v === latestDate)
         .map(([k, v]) => `${k} (${v})`).join(", ") || "ไม่มีข้อมูล";
 
-      // ปิดเคสอัตโนมัติเมื่อปกติ 4 ครั้งติดกัน
       if (normalCount >= 4) {
         await fbPatch(`symptoms/${childKey}`, {
           symptom, status: "ปิดเคส", level: "🟢 ปกติ",
@@ -352,7 +344,6 @@ if (text === "__cancel__") {
         return;
       }
 
-      // คำแนะนำ
       let advice = "✅ อาการปกติ ให้สังเกตอาการต่อไป";
       if (level.includes("🟠")) advice = "⚠️ ควรเฝ้าระวัง วัดไข้ทุก 4 ชั่วโมง";
       if (level.includes("🔴")) advice = "🚨 อาการรุนแรง รอเจ้าหน้าที่รับเคสด่วน!";
@@ -360,9 +351,8 @@ if (text === "__cancel__") {
       const nextStep     = Math.min(followStep + 1, 5);
       const nextFollowUp = getNextFollowTime(nextStep) || null;
 
-      // 🔥 อัปเดต symptoms (เก็บ userId ไว้เสมอ)
       await fbPatch(`symptoms/${childKey}`, {
-        userId,                    // รักษา userId ไว้
+        userId,
         symptom, status, level, priority,
         normalCount,
         followStep:  nextStep,
@@ -383,7 +373,9 @@ if (text === "__cancel__") {
       return;
     }
 
+    // ================================================================
     // Default
+    // ================================================================
     await reply(e.replyToken,
       "ยินดีต้อนรับสู่ระบบ VaxKolok 🏥\n\nพิมพ์:\nลงทะเบียน [HN]\n\nตัวอย่าง: ลงทะเบียน 12345"
     );
@@ -407,10 +399,9 @@ async function autoFollowUp() {
     for (const key in symptoms) {
       const s = symptoms[key];
 
-      // ข้ามเคสที่ปิดแล้ว, ไม่มี userId, หรือยังไม่ถึงเวลา
-      if (!s.userId)         continue;
-      if (s.closedAt)        continue;
-      if (!s.nextFollowUp)   continue;
+      if (!s.userId)            continue;
+      if (s.closedAt)           continue;
+      if (!s.nextFollowUp)      continue;
       if (now < s.nextFollowUp) continue;
 
       const step      = s.followStep || 1;
@@ -426,7 +417,6 @@ async function autoFollowUp() {
       );
 
       if (ok) {
-        // 🔥 set nextFollowUp = null ป้องกัน spam (จะตั้งใหม่เมื่อผู้ปกครองตอบกลับ)
         await fbPatch(`symptoms/${key}`, {
           nextFollowUp: null,
           lastAskedAt:  now,
