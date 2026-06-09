@@ -129,6 +129,7 @@ app.post("/webhook", async (req, res) => {
     if (/^ลงทะเบียน/i.test(text)) {
 
   const hn = text
+    .replace(/\D/g, "")
     .replace(/^ลงทะเบียน\s*:?\s*/i, "")
     .replace(/^hn\s*/i, "")
     .trim();
