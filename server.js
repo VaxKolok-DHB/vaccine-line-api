@@ -133,10 +133,17 @@ app.post("/webhook", async (req, res) => {
 
     // ===== ขั้นตอนที่ 2: ยืนยันการลงทะเบียน =====
     const cleanText = text.replace("✅", "").trim();
-    if (text.startsWith("ยืนยัน")) {
-      const parts     = text.replace("ยืนยัน", "").trim().split(/\s+/);
-      const hnInput   = parts[0] || "";
-      const nameInput = parts.slice(1).join(" ").trim();
+
+        if (cleanText.startsWith("ยืนยัน")) {
+
+        const parts = cleanText
+            .replace("ยืนยัน", "")
+            .trim()
+            .split(/\s+/);
+
+        const hnInput = parts[0] || "";
+        const nameInput = parts.slice(1).join(" ").trim();
+
 
       const pendingRes = await axios.get(`${DB}/pendingRegister/${userId}.json`);
       const pending    = pendingRes.data;
