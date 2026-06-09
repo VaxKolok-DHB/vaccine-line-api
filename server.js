@@ -132,7 +132,10 @@ if (e.type !== "message" || e.message?.type !== "text") return;
     // ===== ลงทะเบียน HN =====
 if (/^ลงทะเบียน/i.test(text)) {
   // แก้ตรงนี้
-  const hn = text.replace(/^ลงทะเบียน\s*:?\s*/i, "").replace(/\D/g, "").trim();
+  const hn = text
+  .replace(/^ลงทะเบียน\s*:?\s*/i, "")  // ตัดคำนำหน้าออกก่อน
+  .replace(/\D/g, "")                   // แล้วค่อยเอาเฉพาะตัวเลข
+  .trim();
 
   if (!hn) {
     await reply(
