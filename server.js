@@ -118,7 +118,11 @@ app.post("/webhook", async (req, res) => {
   try {
     const e = req.body.events?.[0];
     if (!e) return;
-    if (e.type !== "message" || e.message.type !== "text") return;
+    if (e.type === "follow") {
+    await push(e.source.userId, "👋 ยินดีต้อนรับสู่ระบบ VaxKolok 🏥\n\nกรุณาลงทะเบียนโดยพิมพ์:\nลงทะเบียน [HN]\n\nตัวอย่าง: ลงทะเบียน 12345");
+    return;
+    }
+    if (e.type !== "message" || e.message?.type !== "text") return;
 
     const text   = e.message.text.trim();
     const userId = e.source.userId;
