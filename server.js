@@ -161,26 +161,26 @@ if (/^ลงทะเบียน/i.test(text)) {
       }
 
       if (matches.length === 1) {
-        const child = matches[0];
-        await fbSet(`pendingRegister/${userId}`, {
-          hn,
-          childKey: child.key,
-          requireName: false,
-          createdAt: Date.now(),
-        });
-        await reply(e.replyToken,
-          `🔍 พบข้อมูล\n\n👶 ชื่อ : ${child.name}\n🏥 HN  : ${hn}\n\nหากถูกต้อง พิมพ์:\n✅ ยืนยัน ${hn}`
-        );
-      } else {
-        await fbSet(`pendingRegister/${userId}`, {
-          hn, requireName: true, createdAt: Date.now(),
-        });
-        await reply(e.replyToken,
-          `⚠️ HN ${hn} มีหลายรายการ\nกรุณายืนยันตัวตนโดยพิมพ์:\n\nยืนยัน ${hn} ชื่อ นามสกุล\n\nตัวอย่าง: ยืนยัน ${hn} สมชาย ใจดี`
-        );
-      }
-      return;
-    }
+  const child = matches[0];
+  await fbSet(`pendingRegister/${userId}`, {
+    hn, childKey: child.key, requireName: false, createdAt: Date.now(),
+  });
+  // ✅ บันทึก userId ทันที
+  await fbPatch(`children/${child.key}`, { lineUserId: userId, updatedAt: thaiTime() });
+  
+  await reply(e.replyToken,
+    `🔍 พบข้อมูล\n\n👶 ชื่อ : ${child.name}\n🏥 HN  : ${hn}\n\nหากถูกต้อง พิมพ์:\n✅ ยืนยัน ${hn}`
+  );
+} else {
+  await fbSet(`pendingRegister/${userId}`, {
+    hn, requireName: true, createdAt: Date.now(),
+  });
+  // ✅ กรณี HN ซ้ำ ยังไม่รู้ว่าเป็นเด็กคนไหน รอยืนยันชื่อก่อน
+  await reply(e.replyToken,
+    `⚠️ HN ${hn} มีหลายรายการ\nกรุณายืนยันตัวตนโดยพิมพ์:\n\nยืนยัน ${hn} ชื่อ นามสกุล`
+  );
+}
+}
 
     // ===== ยืนยันลงทะเบียน =====
     const cleanText = text.replace("✅", "").trim();
