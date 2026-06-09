@@ -130,13 +130,9 @@ if (e.type !== "message" || e.message?.type !== "text") return;
     console.log(`📩 [${userId}] "${text}"`);
 
     // ===== ลงทะเบียน HN =====
-    if (/^ลงทะเบียน/i.test(text)) {
-
-  const hn = text
-    .replace(/\D/g, "")
-    .replace(/^ลงทะเบียน\s*:?\s*/i, "")
-    .replace(/^hn\s*/i, "")
-    .trim();
+if (/^ลงทะเบียน/i.test(text)) {
+  // แก้ตรงนี้
+  const hn = text.replace(/^ลงทะเบียน\s*:?\s*/i, "").replace(/\D/g, "").trim();
 
   if (!hn) {
     await reply(
@@ -285,7 +281,6 @@ if (e.type !== "message" || e.message?.type !== "text") return;
         },
         body: {
           type: "box", layout: "vertical", spacing: "md", paddingAll: "20px",
-          type: "text", text: isReRegister ? "⚠️ ลงทะเบียนใหม่ (รีเซ็ตการติดตาม)" : "✅ ลงทะเบียนครั้งแรก", size: "xs", color: "#f59e0b", wrap: true, margin: "sm" ,
           
           contents: [
             { type: "box", layout: "horizontal", contents: [
@@ -313,15 +308,7 @@ if (e.type !== "message" || e.message?.type !== "text") return;
       console.log(`✅ ลงทะเบียนแล้ว: ${child.name} (${hnInput}) childKey=${childKey} nextFollowUp=${new Date(step1Time).toISOString()}`);
       return;
     }
-    if (isReRegister) {
-    await push(
-        userId,
-        `🔄 แจ้งเตือน: HN ${hnInput} ได้ลงทะเบียนใหม่อีกครั้ง\n` +
-        `👶 ${child.name}\n` +
-        `🕒 ${thaiTime()}\n\n` +
-        `ระบบจะเริ่มติดตามอาการใหม่ตั้งแต่ต้น`
-    );
-    }
+
     // ===== รับอาการ =====
     if (text.startsWith("อาการ:")) {
       const symptom = text.replace("อาการ:", "").trim();
