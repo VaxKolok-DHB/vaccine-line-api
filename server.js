@@ -132,6 +132,7 @@ app.post("/webhook", async (req, res) => {
     }
 
     // ===== ขั้นตอนที่ 2: ยืนยันการลงทะเบียน =====
+    const cleanText = text.replace("✅", "").trim();
     if (text.startsWith("ยืนยัน")) {
       const parts     = text.replace("ยืนยัน", "").trim().split(/\s+/);
       const hnInput   = parts[0] || "";
