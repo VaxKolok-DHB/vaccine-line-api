@@ -58,17 +58,88 @@ const SYMPTOM_QUICK_REPLY = [
   { type: "action", action: { type: "message", label: "🚨 รุนแรง",  text: "อาการ: รุนแรง" } },
 ];
 
-async function reply(replyToken, text) {
-  try {
-    await axios.post(
-      "https://api.line.me/v2/bot/message/reply",
-      { replyToken, messages: [{ type: "text", text }] },
-      { headers: { Authorization: `Bearer ${TOKEN}` } }
-    );
-  } catch (err) {
-    console.log("reply error:", err.response?.data || err.message);
+await replyFlex(e.replyToken, "✅ ลงทะเบียนสำเร็จ", {
+  type: "bubble",
+  size: "kilo",
+  header: {
+    type: "box",
+    layout: "vertical",
+    backgroundColor: "#0e9f6e",
+    paddingAll: "20px",
+    contents: [
+      {
+        type: "text",
+        text: "✅ ลงทะเบียนสำเร็จ",
+        color: "#ffffff",
+        size: "lg",
+        weight: "bold"
+      },
+      {
+        type: "text",
+        text: "ระบบติดตามวัคซีนเด็ก VaxKolok",
+        color: "#d1fae5",
+        size: "xs",
+        margin: "sm"
+      }
+    ]
+  },
+  body: {
+    type: "box",
+    layout: "vertical",
+    spacing: "md",
+    paddingAll: "20px",
+    contents: [
+      {
+        type: "box",
+        layout: "horizontal",
+        contents: [
+          { type: "text", text: "👶 ชื่อ", size: "sm", color: "#6b7280", flex: 2 },
+          { type: "text", text: child.name || "-", size: "sm", color: "#0d1b2a", weight: "bold", flex: 5, wrap: true }
+        ]
+      },
+      {
+        type: "box",
+        layout: "horizontal",
+        contents: [
+          { type: "text", text: "🏥 HN", size: "sm", color: "#6b7280", flex: 2 },
+          { type: "text", text: hnInput, size: "sm", color: "#0d1b2a", weight: "bold", flex: 5 }
+        ]
+      },
+      {
+        type: "box",
+        layout: "horizontal",
+        contents: [
+          { type: "text", text: "📋 สถานะ", size: "sm", color: "#6b7280", flex: 2 },
+          { type: "text", text: "รอติดตาม", size: "sm", color: "#0e9f6e", weight: "bold", flex: 5 }
+        ]
+      },
+      { type: "separator", margin: "md" },
+      {
+        type: "text",
+        text: "⏱ ระบบจะส่งแบบประเมินอาการให้ใน 30 วินาที",
+        size: "xs",
+        color: "#6b7280",
+        wrap: true,
+        margin: "md"
+      }
+    ]
+  },
+  footer: {
+    type: "box",
+    layout: "vertical",
+    paddingAll: "12px",
+    backgroundColor: "#f9fafb",
+    contents: [
+      {
+        type: "text",
+        text: `🕒 ${thaiTime()}`,
+        size: "xs",
+        color: "#9ca3af",
+        align: "center"
+      }
+    ]
   }
-}
+});
 
 async function push(userId, text, quickReply = null) {
   try {
