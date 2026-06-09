@@ -119,10 +119,10 @@ app.post("/webhook", async (req, res) => {
     const e = req.body.events?.[0];
     if (!e) return;
     if (e.type === "follow") {
-    await push(e.source.userId, "👋 ยินดีต้อนรับสู่ระบบ VaxKolok 🏥\n\nกรุณาลงทะเบียนโดยพิมพ์:\nลงทะเบียน [HN]\n\nตัวอย่าง: ลงทะเบียน 12345");
-    return;
-    }
-    if (e.type !== "message" || e.message?.type !== "text") return;
+  await push(e.source.userId, "👋 ยินดีต้อนรับสู่ระบบ VaxKolok 🏥\n\nกรุณาลงทะเบียนโดยพิมพ์:\nลงทะเบียน [HN]\n\nตัวอย่าง: ลงทะเบียน 12345");
+  return;
+}
+if (e.type !== "message" || e.message?.type !== "text") return;
 
     const text   = e.message.text.trim();
     const userId = e.source.userId;
@@ -228,10 +228,13 @@ app.post("/webhook", async (req, res) => {
       }
 
       // 🔥 สร้าง symptoms record ที่ครบถ้วน (key เดียวกับ children)
-      const now       = Date.now();
-      const step1Time = getNextFollowTime(1);
+    const now       = Date.now();
+    const step1Time = getNextFollowTime(1);
+    // ตรวจสอบว่าเคยลงทะเบียนแล้วหรือยัง
+    const existing = await fbGet(`symptoms/${childKey}`);
+    const isReRegister = existing && existing.registeredAt;
 
-      const symptomData = {
+    const symptomData = {
         // --- ข้อมูลเด็ก (sync จาก children) ---
         childKey,
         userId,                          // 🔑 สำคัญ: LINE userId สำหรับ push
@@ -282,6 +285,8 @@ app.post("/webhook", async (req, res) => {
         },
         body: {
           type: "box", layout: "vertical", spacing: "md", paddingAll: "20px",
+          type: "text", text: isReRegister ? "⚠️ ลงทะเบียนใหม่ (รีเซ็ตการติดตาม)" : "✅ ลงทะเบียนครั้งแรก", size: "xs", color: "#f59e0b", wrap: true, margin: "sm" ,
+          
           contents: [
             { type: "box", layout: "horizontal", contents: [
               { type: "text", text: "👶 ชื่อ",  size: "sm", color: "#6b7280", flex: 2 },
@@ -308,7 +313,15 @@ app.post("/webhook", async (req, res) => {
       console.log(`✅ ลงทะเบียนแล้ว: ${child.name} (${hnInput}) childKey=${childKey} nextFollowUp=${new Date(step1Time).toISOString()}`);
       return;
     }
-
+    if (isReRegister) {
+    await push(
+        userId,
+        `🔄 แจ้งเตือน: HN ${hnInput} ได้ลงทะเบียนใหม่อีกครั้ง\n` +
+        `👶 ${child.name}\n` +
+        `🕒 ${thaiTime()}\n\n` +
+        `ระบบจะเริ่มติดตามอาการใหม่ตั้งแต่ต้น`
+    );
+    }
     // ===== รับอาการ =====
     if (text.startsWith("อาการ:")) {
       const symptom = text.replace("อาการ:", "").trim();
