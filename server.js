@@ -198,22 +198,23 @@ if (matches.length === 1) {
 } else {
   // reply ก่อน
   await reply(e.replyToken,
-    `⚠️ HN ${hn} มีหลายรายการ\nกรุณายืนยันตัวตนโดยพิมพ์:\n\nยืนยัน ${hn} ชื่อ นามสกุล`
-  );
-
+    `⚠️ HN ${hn} มีหลายรายการ\nกรุณายืนยันตัวตนโดยพิมพ์:\n\nยืนยัน ${hn} ชื่อ นามสกุล`);
   // แล้วค่อย Firebase
   await fbSet(`pendingRegister/${userId}`, {
-    hn, requireName: true, createdAt: Date.now(),
-  });
+    hn, requireName: true, createdAt: Date.now(),});
 }
 
     // ===== ยืนยันลงทะเบียน =====
 // ===== ยืนยันลงทะเบียน (จากปุ่ม) =====
 if (text.startsWith("__confirm__")) {
-  const parts    = text.split("__").filter(Boolean);
-  const hnInput  = parts[1]; // confirm
-  const childKey = parts[2]; // key
-
+const parts    = text.split("__").filter(Boolean);
+const hnInput  = parts[1]; // confirm
+const childKey = parts[2]; // key
+} else {
+  // reply ก่อน
+  await reply(e.replyToken,
+    `⚠️ HN ${hn} มีหลายรายการ...`   
+  );
   const children = await fbGet("children") || {};
   const child    = children[childKey];
 
