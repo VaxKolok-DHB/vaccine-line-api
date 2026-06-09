@@ -40,15 +40,16 @@ const SYMPTOM_QUICK_REPLY = [
 ];
 
 // =====================
-// Messaging functions  ← ต้องอยู่ตรงนี้ก่อน webhook
+// Messaging functions
 // =====================
 async function reply(replyToken, text) {
   try {
-    await axios.post(
+    const r = await axios.post(
       "https://api.line.me/v2/bot/message/reply",
       { replyToken, messages: [{ type: "text", text }] },
       { headers: { Authorization: `Bearer ${TOKEN}` } }
     );
+    console.log("reply OK:", r.status);
   } catch (err) {
     console.log("reply error:", err.response?.data || err.message);
   }
@@ -56,11 +57,12 @@ async function reply(replyToken, text) {
 
 async function replyFlex(replyToken, altText, flexContents) {
   try {
-    await axios.post(
+    const r = await axios.post(
       "https://api.line.me/v2/bot/message/reply",
       { replyToken, messages: [{ type: "flex", altText, contents: flexContents }] },
       { headers: { Authorization: `Bearer ${TOKEN}` } }
     );
+    console.log("replyFlex OK:", r.status);
   } catch (err) {
     console.log("replyFlex error:", err.response?.data || err.message);
   }
@@ -134,16 +136,15 @@ app.post("/webhook", async (req, res) => {
     // ===== ขั้นตอนที่ 2: ยืนยันการลงทะเบียน =====
     const cleanText = text.replace("✅", "").trim();
 
-        if (cleanText.startsWith("ยืนยัน")) {
+    if (cleanText.startsWith("ยืนยัน")) {
 
-        const parts = cleanText
-            .replace("ยืนยัน", "")
-            .trim()
-            .split(/\s+/);
+      const parts = cleanText
+        .replace("ยืนยัน", "")
+        .trim()
+        .split(/\s+/);
 
-        const hnInput = parts[0] || "";
-        const nameInput = parts.slice(1).join(" ").trim();
-
+      const hnInput   = parts[0] || "";
+      const nameInput = parts.slice(1).join(" ").trim();
 
       const pendingRes = await axios.get(`${DB}/pendingRegister/${userId}.json`);
       const pending    = pendingRes.data;
@@ -184,32 +185,7 @@ app.post("/webhook", async (req, res) => {
         return res.sendStatus(200);
       }
 
-      await axios.delete(`${DB}/pendingRegister/${userId}.json`);
-
-      await axios.patch(`${DB}/symptoms/${childKey}.json`, {
-        userId,
-        name:         child.name     || "",
-        hn:           child.hn       || "",
-        cid:          child.cid      || "",
-        phone:        child.phone    || "",
-        birth:        child.birth    || "",
-        vaccines:     child.vaccines || {},
-        symptom:      "",
-        status:       "รอติดตาม",
-        level:        "🟢 ปกติ",
-        priority:     3,
-        assignedTo:   "",
-        followStep:   1,
-        normalCount:  0,
-        registeredAt: Date.now(),
-        nextFollowUp: getNextFollowTime(1),
-        closedAt:     null,
-        time:         Date.now(),
-      });
-
-      await axios.patch(`${DB}/children/${childKey}.json`, { lineUserId: userId });
-
-      // ===== Flex Message ยืนยันการลงทะเบียน =====
+      // ✅ แก้ไข: reply ก่อนทำ Firebase เพื่อป้องกัน replyToken หมดอายุ
       await replyFlex(e.replyToken, "✅ ลงทะเบียนสำเร็จ", {
         type: "bubble",
         size: "kilo",
@@ -261,6 +237,32 @@ app.post("/webhook", async (req, res) => {
           ]
         }
       });
+
+      // บันทึก Firebase หลังจาก reply แล้ว
+      await axios.delete(`${DB}/pendingRegister/${userId}.json`);
+
+      await axios.patch(`${DB}/symptoms/${childKey}.json`, {
+        userId,
+        name:         child.name     || "",
+        hn:           child.hn       || "",
+        cid:          child.cid      || "",
+        phone:        child.phone    || "",
+        birth:        child.birth    || "",
+        vaccines:     child.vaccines || {},
+        symptom:      "",
+        status:       "รอติดตาม",
+        level:        "🟢 ปกติ",
+        priority:     3,
+        assignedTo:   "",
+        followStep:   1,
+        normalCount:  0,
+        registeredAt: Date.now(),
+        nextFollowUp: getNextFollowTime(1),
+        closedAt:     null,
+        time:         Date.now(),
+      });
+
+      await axios.patch(`${DB}/children/${childKey}.json`, { lineUserId: userId });
 
       return res.sendStatus(200);
     }
