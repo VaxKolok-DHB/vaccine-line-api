@@ -282,14 +282,13 @@ birth: child.birth || "",
 
 vaccines: child.vaccines || {},
 
-symptom:symptom,
-status:status,
-level:level,
-priority:priority,
+symptom:"",
+status:"รอติดตาม",
+level:"🟢 ปกติ",
+priority:3,
 
 assignedTo:"",
 time:Date.now()
-
 }
 );
 
@@ -307,14 +306,13 @@ await push(
 
 userId,
 
-`📋 ติดตามอาการ
+`📋 ติดตามอาการหลังฉีดวัคซีน
 
 👶 ${child.name}
 
-มีอาการอย่างไร?`,
-
+กรุณาประเมินอาการของบุตรท่าน`,
 [
-
+    
 {
 type:"action",
 action:{
@@ -391,81 +389,41 @@ return res.sendStatus(
 // รับอาการ
 // =====================
 
-if(text.startsWith("อาการ:"))
-
-{
-
-const symptom = text.replace("อาการ:","").trim();
-const symptomRef = await axios.get(`${DB}/symptoms/${childKey}.json`);
-
-await axios.patch(
-`${DB}/symptoms/${childKey}.json`,
-{
- name: child.name || "",
- hn: child.hn || "",
-
- symptom:symptom,
- status:status,
- level:level,
- priority:priority,
-
- followStep:step,
- normalCount:normalCount,
- nextFollowUp:nextFollowUp,
-
- assignedTo:"",
- time:Date.now()
-}
-);
 
 
+if(text.startsWith("อาการ:")){
 
+const symptom =
+text.replace("อาการ:","").trim();
 
+const result =
+await axios.get(`${DB}/children.json`);
 
-const follow = symptomRef.data || {};
-
-const result = await axios.get(`${DB}/children.json`);
-const children = result.data||{};
+const children =
+result.data || {};
 
 let child=null;
 let childKey=null;
 
 for(let key in children){
 
-   const c=
-   children[key];
+   if(children[key].lineUserId===userId){
 
-   if(
-      c.lineUserId===userId
-   ){
-
-      child=c;
-
+      child=children[key];
       childKey=key;
-
       break;
-
    }
-
 }
-
 
 if(!child){
 
-await reply(
+   await reply(
+      e.replyToken,
+      "❌ ไม่พบข้อมูลการลงทะเบียน"
+   );
 
-e.replyToken,
-
-"❌ ไม่พบข้อมูลการลงทะเบียน"
-
-);
-
-return res.sendStatus(
-200
-);
-
+   return res.sendStatus(200);
 }
-
 
 // ===== วัคซีนล่าสุด =====
 
