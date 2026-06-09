@@ -57,7 +57,6 @@ const SYMPTOM_QUICK_REPLY = [
   { type: "action", action: { type: "message", label: "🔥 ไข้สูง",  text: "อาการ: ไข้สูง" } },
   { type: "action", action: { type: "message", label: "🚨 รุนแรง",  text: "อาการ: รุนแรง" } },
 ];
-
 await replyFlex(e.replyToken, "✅ ลงทะเบียนสำเร็จ", {
   type: "bubble",
   size: "kilo",
@@ -140,7 +139,6 @@ await replyFlex(e.replyToken, "✅ ลงทะเบียนสำเร็จ
     ]
   }
 });
-
 async function push(userId, text, quickReply = null) {
   try {
     const msg = { type: "text", text };
