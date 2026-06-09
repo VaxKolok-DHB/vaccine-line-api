@@ -160,26 +160,30 @@ if (/^ลงทะเบียน/i.test(text)) {
         return;
       }
 
-      if (matches.length === 1) {
+  if (matches.length === 1) {
   const child = matches[0];
-  await fbSet(`pendingRegister/${userId}`, {
-    hn, childKey: child.key, requireName: false, createdAt: Date.now(),
-  });
-  // ✅ บันทึก userId ทันที
-  await fbPatch(`children/${child.key}`, { lineUserId: userId, updatedAt: thaiTime() });
-  
+
+  // ✅ reply ก่อนเลย ก่อนที่ replyToken จะหมดอายุ
   await reply(e.replyToken,
     `🔍 พบข้อมูล\n\n👶 ชื่อ : ${child.name}\n🏥 HN  : ${hn}\n\nหากถูกต้อง พิมพ์:\n✅ ยืนยัน ${hn}`
   );
-} else {
+
+  // แล้วค่อยทำ Firebase (ไม่ต้องรอ replyToken แล้ว)
   await fbSet(`pendingRegister/${userId}`, {
-    hn, requireName: true, createdAt: Date.now(),
+    hn, childKey: child.key, requireName: false, createdAt: Date.now(),
   });
-  // ✅ กรณี HN ซ้ำ ยังไม่รู้ว่าเป็นเด็กคนไหน รอยืนยันชื่อก่อน
+  await fbPatch(`children/${child.key}`, { lineUserId: userId, updatedAt: thaiTime() });
+}
+} else {
+  // reply ก่อน
   await reply(e.replyToken,
     `⚠️ HN ${hn} มีหลายรายการ\nกรุณายืนยันตัวตนโดยพิมพ์:\n\nยืนยัน ${hn} ชื่อ นามสกุล`
   );
-}
+
+  // แล้วค่อย Firebase
+  await fbSet(`pendingRegister/${userId}`, {
+    hn, requireName: true, createdAt: Date.now(),
+  });
 }
 
     // ===== ยืนยันลงทะเบียน =====
