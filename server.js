@@ -202,13 +202,13 @@ if (/^ลงทะเบียน/i.test(text)) {
       const children = await fbGet("children") || {};
       let child = null, childKey = null;
 
-      if (!pending.requireName) {
+     if (!pending.requireName) {
         childKey = pending.childKey;
         child    = children[childKey];
-      } else {
+     } else {
         if (!nameInput) {
-          await reply(e.replyToken, `❌ กรุณาระบุชื่อ-นามสกุล\nตัวอย่าง: ยืนยัน ${hnInput} สมชาย ใจดี`);
-          return;
+            await reply(e.replyToken, `❌ กรุณาระบุชื่อ-นามสกุล\nตัวอย่าง: ยืนยัน ${hnInput} สมชาย ใจดี`);
+            return;
         }
         for (const key in children) {
           const c = children[key];
