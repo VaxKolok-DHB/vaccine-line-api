@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VaxKolok — ระบบติดตามวัคซีนเด็ก</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --green:#059669;  --green-lt:#d1fae5;
+  --red:#dc2626;    --red-lt:#fee2e2;
+  --orange:#d97706; --orange-lt:#fef3c7;
+  --blue:#1d4ed8;   --blue-lt:#dbeafe;
+  --ink:#111827;    --ink2:#374151; --ink3:#6b7280;
+  --bg:#f3f4f6;     --card:#ffffff; --border:#e5e7eb;
+  --r:14px;
+}
+body{font-family:'IBM Plex Sans Thai',sans-serif;background:var(--bg);color:var(--ink);padding-bottom:60px;}
+
+/* ── TOPBAR ─────────────────────────────────── */
+.topbar{
+  background:var(--green);padding:0 24px;height:60px;
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:300;
+  box-shadow:0 2px 8px rgba(0,0,0,.15);
+}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none;}
+.logo-icon{width:36px;height:36px;background:rgba(255,255,255,.22);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.logo-name{font-size:20px;font-weight:800;color:#fff;}
+.logo-sub {font-size:11px;color:rgba(255,255,255,.8);margin-top:1px;}
+.btn-login{
+  text-decoration:none;font-size:13px;font-weight:700;
+  background:#fff;color:var(--green);
+  border-radius:10px;padding:8px 18px;
+  display:inline-flex;align-items:center;gap:7px;
+}
+
+/* ── OFFICIAL HEADER ─────────────────────────── */
+.off-header{
+  background:#fff;border-bottom:1px solid var(--border);
+  padding:16px 24px;
+}
+.off-inner{
+  max-width:1080px;margin:0 auto;
+  display:flex;align-items:center;gap:14px;
+  border-left:5px solid var(--green);padding-left:18px;
+}
+.off-icon{
+  width:48px;height:48px;border-radius:14px;flex-shrink:0;
+  background:var(--green);display:flex;align-items:center;justify-content:center;
+}
+.off-eyebrow{font-size:11px;color:var(--ink3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px;}
+.off-title  {font-size:18px;font-weight:800;color:var(--ink);line-height:1.2;}
+.off-sub    {font-size:13px;color:var(--ink2);}
+
+/* ── FILTER BAR ──────────────────────────────── */
+.filter-bar{
+  background:#fff;border-bottom:2px solid var(--border);
+  padding:14px 24px;position:sticky;top:60px;z-index:200;
+  box-shadow:0 2px 6px rgba(0,0,0,.05);
+}
+.filter-bar-inner{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:12px;}
+
+/* ── Tab row ─────────────────────────────────── */
+.filter-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;}
+.filter-row-label{
+  font-size:12px;font-weight:700;color:var(--ink3);
+  text-transform:uppercase;letter-spacing:.06em;
+  white-space:nowrap;margin-right:4px;min-width:52px;
+}
+
+/* ── Pill button ─────────────────────────────── */
+.pill{
+  height:36px;padding:0 14px;border-radius:99px;
+  border:2px solid var(--border);background:#fff;
+  font-family:inherit;font-size:13px;font-weight:600;color:var(--ink2);
+  cursor:pointer;transition:all .15s;white-space:nowrap;
+  display:inline-flex;align-items:center;gap:6px;
+}
+.pill:hover{border-color:#9ca3af;color:var(--ink);}
+.pill.active{background:var(--green);border-color:var(--green);color:#fff;}
+.pill .pill-count{
+  font-size:11px;font-weight:700;
+  background:rgba(255,255,255,.25);border-radius:99px;
+  padding:1px 6px;margin-left:2px;
+}
+.pill.active .pill-count{background:rgba(255,255,255,.35);}
+
+/* ── Select (วัคซีน / หมู่) ──────────────────── */
+.filter-select{
+  height:36px;border:2px solid var(--border);border-radius:10px;
+  font-family:inherit;font-size:13px;font-weight:600;color:var(--ink);
+  padding:0 12px;background:#fff;cursor:pointer;
+}
+.filter-select:focus{outline:none;border-color:var(--green);}
+
+.filter-right{margin-left:auto;font-size:12px;color:var(--ink3);align-self:center;white-space:nowrap;}
+
+/* ── WRAP ────────────────────────────────────── */
+.wrap{max-width:1080px;margin:0 auto;padding:24px 20px;}
+
+/* ── SECTION LABEL ───────────────────────────── */
+.sec-label{
+  font-size:12px;font-weight:700;color:var(--ink3);
+  text-transform:uppercase;letter-spacing:.06em;
+  margin-bottom:14px;
+  display:flex;align-items:center;gap:8px;
+}
+.sec-label::after{content:'';flex:1;height:2px;background:var(--border);border-radius:99px;}
+
+/* ── KPI ─────────────────────────────────────── */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px;}
+.kpi{
+  background:#fff;border:1.5px solid var(--border);border-radius:var(--r);
+  padding:22px 20px 18px;position:relative;
+  border-left:4px solid var(--border);
+}
+.kpi.blue  {border-left-color:var(--blue);}
+.kpi.green {border-left-color:var(--green);}
+.kpi.red   {border-left-color:var(--red);}
+.kpi.orange{border-left-color:var(--orange);}
+.kpi-icon{font-size:15px;margin-bottom:8px;}
+.kpi.blue   .kpi-icon{color:var(--blue);}
+.kpi.green  .kpi-icon{color:var(--green);}
+.kpi.red    .kpi-icon{color:var(--red);}
+.kpi.orange .kpi-icon{color:var(--orange);}
+.kpi-label{font-size:13px;font-weight:600;color:var(--ink3);margin-bottom:6px;}
+.kpi-num{font-size:44px;font-weight:800;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums;}
+.kpi-sub{font-size:12px;color:var(--ink3);margin-top:6px;}
+
+/* ── CHART ───────────────────────────────────── */
+.chart-row{display:grid;grid-template-columns:320px 1fr;gap:16px;margin-bottom:28px;align-items:start;}
+.chart-card{background:#fff;border:2px solid var(--border);border-radius:var(--r);overflow:hidden;}
+.chart-head{padding:14px 18px;border-bottom:2px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.chart-head-title{font-size:15px;font-weight:800;display:flex;align-items:center;gap:8px;}
+.chart-body{padding:18px;overflow:hidden;}
+.donut-wrap{position:relative;width:190px;height:190px;margin:0 auto 14px;overflow:hidden;}
+.donut-stats{display:flex;justify-content:center;gap:24px;}
+.donut-stat-num{font-size:28px;font-weight:800;line-height:1;}
+.donut-stat-lbl{font-size:12px;color:var(--ink3);margin-top:4px;}
+.dot-green{color:var(--green);}
+.dot-red  {color:var(--red);}
+#villageChartWrap{position:relative;overflow:hidden;transition:height .2s;}
+canvas{display:block;max-width:100%;}
+
+.footer{text-align:center;font-size:12px;color:var(--ink3);padding-top:8px;}
+
+/* ── TABLET (≤900px) ─────────────────────────── */
+@media(max-width:900px){
+  .chart-row { grid-template-columns:1fr; }
+  .kpi-row   { grid-template-columns:1fr 1fr; }
+  .donut-wrap{ width:170px; height:170px; }
+}
+
+/* ── MOBILE (≤600px) ─────────────────────────── */
+@media(max-width:600px){
+  /* topbar */
+  .topbar { padding:0 14px; }
+  .logo-sub { display:none; }
+
+  /* filter bar: sticky แต่ไม่บังเนื้อหาเยอะ */
+  .filter-bar { padding:10px 14px; top:60px; }
+  .filter-bar-inner { gap:10px; }
+  .filter-row { gap:6px; }
+  .filter-row-label { min-width:auto; font-size:11px; }
+  .pill { height:32px; padding:0 11px; font-size:12px; }
+  .filter-select { height:32px; font-size:12px; padding:0 8px; }
+
+  /* KPI: 2 คอลัมน์ */
+  .kpi-row { grid-template-columns:1fr 1fr; gap:10px; }
+  .kpi { padding:14px 14px 12px; }
+  .kpi-num { font-size:32px; }
+  .kpi-label { font-size:12px; }
+  .kpi-sub { font-size:11px; }
+
+  /* wrap */
+  .wrap { padding:14px 12px; }
+  .sec-label { font-size:11px; }
+
+  /* charts */
+  .chart-row { gap:12px; margin-bottom:20px; }
+  .chart-head { padding:12px 14px; }
+  .chart-head-title { font-size:14px; }
+  .chart-body { padding:14px; }
+  .donut-wrap { width:150px; height:150px; }
+  .donut-stat-num { font-size:22px; }
+  #villageChartWrap { min-height:200px; }
+}
+
+/* ── SMALL MOBILE (≤400px) ───────────────────── */
+@media(max-width:400px){
+  .kpi-num { font-size:26px; }
+  .pill { height:30px; padding:0 9px; font-size:11px; }
+  /* กลุ่ม pills ซ่อนบน row เล็กมาก → ขึ้นบรรทัดใหม่อัตโนมัติ */
+}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<nav class="topbar">
+  <a href="#" class="logo">
+    <div class="logo-icon">
+      <i class="fa-solid fa-syringe" style="color:#fff;font-size:16px;"></i>
+    </div>
+    <div>
+      <div class="logo-name">VaxKolok</div>
+      <div class="logo-sub">ระบบติดตามวัคซีนเด็ก · อ.สุไหงโก-ลก</div>
+    </div>
+  </a>
+  <a href="login.html" class="btn-login">
+    <i class="fa-solid fa-right-to-bracket fa-sm"></i> เข้าสู่ระบบ
+  </a>
+</nav>
+
+<!-- FILTER BAR -->
+<div class="filter-bar">
+  <div class="filter-bar-inner">
+
+    <!-- ROW 1: ตำบล -->
+    <div class="filter-row">
+      <span class="filter-row-label"><i class="fa-solid fa-map-pin fa-xs"></i> ตำบล</span>
+      <button class="pill active" data-tambon="all"     onclick="setTambon(this)">ทุกตำบล</button>
+      <button class="pill"        data-tambon="kolok"   onclick="setTambon(this)">
+        <i class="fa-solid fa-building fa-xs"></i> สุไหงโก-ลก
+      </button>
+      <button class="pill"        data-tambon="munoh"   onclick="setTambon(this)">
+        <i class="fa-solid fa-location-dot fa-xs"></i> มูโนะ
+      </button>
+      <button class="pill"        data-tambon="puyoh"   onclick="setTambon(this)">
+        <i class="fa-solid fa-location-dot fa-xs"></i> ปูโยะ
+      </button>
+      <button class="pill"        data-tambon="pasemas" onclick="setTambon(this)">
+        <i class="fa-solid fa-location-dot fa-xs"></i> ปาเสมัส
+      </button>
+
+      <span class="filter-right" id="totalBadge">—</span>
+      <span style="font-size:12px;color:var(--ink3);white-space:nowrap;">อัปเดต <span id="updateTime">…</span></span>
+    </div>
+
+    <!-- ROW 2: วัคซีน / หมู่ / กลุ่ม -->
+    <div class="filter-row">
+      <span class="filter-row-label"><i class="fa-solid fa-syringe fa-xs"></i> วัคซีน</span>
+      <select class="filter-select" id="vaccineFilter" onchange="onFilterChange()" style="min-width:150px;">
+        <option value="all">ทุกวัคซีน</option>
+      </select>
+
+      <span style="width:1px;height:24px;background:var(--border);margin:0 4px;flex-shrink:0;"></span>
+
+      <span class="filter-row-label" id="villageFilterLabel" style="display:none">
+        <i class="fa-solid fa-house fa-xs"></i> หมู่บ้าน
+      </span>
+      <select class="filter-select" id="villageFilter" onchange="onFilterChange()" style="display:none;min-width:160px;">
+        <option value="all">ทุกหมู่</option>
+      </select>
+
+      <span class="filter-row-label"><i class="fa-solid fa-users fa-xs"></i> กลุ่ม</span>
+      <button class="pill active" data-type="all" onclick="setType(this)">ทุกกลุ่ม</button>
+      <button class="pill" data-type="1" onclick="setType(this)" title="อยู่จริงตามทะเบียน">กลุ่ม 1</button>
+      <button class="pill" data-type="2" onclick="setType(this)" title="มีชื่อ แต่ไม่อยู่จริง">กลุ่ม 2</button>
+      <button class="pill" data-type="3" onclick="setType(this)" title="ไม่มีชื่อ แต่อยู่จริง">กลุ่ม 3</button>
+      <button class="pill" data-type="4" onclick="setType(this)" title="นอกเขต มารับบริการ">กลุ่ม 4</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="wrap">
+
+  <div class="sec-label">ภาพรวม</div>
+  <div class="kpi-row">
+    <div class="kpi blue">
+      <div class="kpi-icon"><i class="fa-solid fa-users"></i></div>
+      <div class="kpi-label">เด็กทั้งหมด</div>
+      <div class="kpi-num" id="dash-total">—</div>
+      <div class="kpi-sub" id="dash-total-sub">คนในระบบ</div>
+    </div>
+    <div class="kpi green">
+      <div class="kpi-icon"><i class="fa-solid fa-circle-check"></i></div>
+      <div class="kpi-label">ได้รับวัคซีนครบ</div>
+      <div class="kpi-num" id="dash-done">—</div>
+      <div class="kpi-sub" id="dash-done-sub">ครบ 10 เข็มขึ้นไป</div>
+    </div>
+    <div class="kpi red">
+      <div class="kpi-icon"><i class="fa-solid fa-circle-xmark"></i></div>
+      <div class="kpi-label">ยังไม่ครบ</div>
+      <div class="kpi-num" id="dash-notdone">—</div>
+      <div class="kpi-sub">ต้องติดตาม</div>
+    </div>
+    <div class="kpi orange">
+      <div class="kpi-icon"><i class="fa-solid fa-chart-pie"></i></div>
+      <div class="kpi-label">ความครอบคลุม</div>
+      <div class="kpi-num" id="dash-percent">—</div>
+      <div class="kpi-sub" id="dash-pct-sub">ของเด็กทั้งหมด</div>
+    </div>
+  </div>
+
+  <div class="sec-label">กราฟการฉีดวัคซีน</div>
+  <div class="chart-row">
+
+    <!-- Donut -->
+    <div class="chart-card">
+      <div class="chart-head">
+        <div class="chart-head-title">
+          <i class="fa-solid fa-chart-pie" style="color:var(--green);"></i> สัดส่วน
+        </div>
+      </div>
+      <div class="chart-body">
+        <div class="donut-wrap">
+          <canvas id="dashDonutChart"></canvas>
+        </div>
+        <div class="donut-stats">
+          <div style="text-align:center;">
+            <div class="donut-stat-num dot-green" id="dash-donutDone">—</div>
+            <div class="donut-stat-lbl" id="dash-donutDoneLbl">ฉีดครบแล้ว</div>
+          </div>
+          <div style="text-align:center;">
+            <div class="donut-stat-num dot-red" id="dash-donutNot">—</div>
+            <div class="donut-stat-lbl">ยังไม่ครบ</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bar -->
+    <div class="chart-card">
+      <div class="chart-head">
+        <div class="chart-head-title">
+          <i class="fa-solid fa-map-location-dot" style="color:var(--blue);"></i> รายหมู่บ้าน / ตำบล
+        </div>
+        <div style="font-size:12px;color:var(--ink3);" id="villageChartSub">ทุกตำบล · ทุกวัคซีน</div>
+      </div>
+      <div class="chart-body" style="padding-bottom:24px;">
+        <div id="villageChartWrap" style="height:260px;">
+          <canvas id="dashVillageChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="footer">
+    ข้อมูล ณ วันที่ <span id="todayText"></span> · ระบบ VaxKolok · สาธารณสุขอำเภอสุไหงโก-ลก
+  </div>
+</div>
+
+<!-- stubs for app.js -->
+<select id="tambonFilter"   hidden></select>
+<select id="typeAreaFilter" hidden></select>
+<select id="hospitalFilter" hidden></select>
+<nav    id="pagination"     hidden></nav>
+<tbody  id="followTable"    hidden></tbody>
+<div    id="mobileList"     hidden></div>
+<div style="display:none;overflow:hidden;width:0;height:0;">
+  <canvas id="followChart"></canvas>
+  <canvas id="vaccineChart"></canvas>
+</div>
+<div id="chartDescription"   hidden></div>
+<div id="vaccineDescription" hidden></div>
+
+<script>
+const DONE_THRESHOLD = 10;
+
+let dashAllChildren = {};
+let dashDonutInst   = null;
+let dashVillageInst = null;
+
+// ── State ───────────────────────────────────────
+let stTambon  = "all";
+let stType    = "all";
+
+function safeAge(b)   { return typeof getAgeMonths       !== "undefined" ? getAgeMonths(b)            : 0; }
+function safeMin(v)   { return typeof vaccineAgeSchedule !== "undefined" ? (vaccineAgeSchedule[v]??0)  : 0; }
+function safeLabel(v) { return vaccineLabel?.[v] || v; }
+
+// ── Pills: ตำบล ─────────────────────────────────
+function setTambon(el) {
+  document.querySelectorAll("[data-tambon]").forEach(b => b.classList.remove("active"));
+  el.classList.add("active");
+  stTambon = el.dataset.tambon;
+
+  // sync hidden select (app.js ใช้)
+  const sel = document.getElementById("tambonFilter");
+  if (sel) sel.value = stTambon;
+
+  // แสดง/ซ่อน หมู่บ้าน filter
+  populateVillageFilter();
+  onFilterChange();
+}
+
+// ── Pills: กลุ่ม ────────────────────────────────
+function setType(el) {
+  document.querySelectorAll("[data-type]").forEach(b => b.classList.remove("active"));
+  el.classList.add("active");
+  stType = el.dataset.type;
+
+  const sel = document.getElementById("typeAreaFilter");
+  if (sel) sel.value = stType;
+
+  onFilterChange();
+}
+
+// ── Village dropdown ────────────────────────────
+function populateVillageFilter() {
+  const lbl = document.getElementById("villageFilterLabel");
+  const sel = document.getElementById("villageFilter");
+  if (!sel) return;
+
+  if (stTambon === "all" || typeof villageData === "undefined") {
+    if (lbl) lbl.style.display = "none";
+    sel.style.display = "none";
+    sel.value = "all";
+    return;
+  }
+
+  const isKolok = (stTambon === "kolok");
+  sel.innerHTML = `<option value="all">${isKolok ? "ทุกชุมชน" : "ทุกหมู่"}</option>`;
+  const srcData = isKolok
+    ? (typeof kolokCommunity !== "undefined" ? kolokCommunity : {})
+    : (villageData?.[stTambon] || {});
+  Object.entries(srcData)
+    .sort((a,b) => parseInt(a[0]) - parseInt(b[0]))
+    .forEach(([vno, info]) => {
+      const op = document.createElement("option");
+      op.value = vno;
+      op.textContent = isKolok ? info.name : `หมู่ ${vno} – ${info.name}`;
+      sel.appendChild(op);
+    });
+  if (lbl) {
+    lbl.style.display = "";
+    lbl.innerHTML = isKolok
+      ? '<i class="fa-solid fa-people-group fa-xs"></i> ชุมชน'
+      : '<i class="fa-solid fa-house fa-xs"></i> หมู่บ้าน';
+  }
+  sel.style.display = "";
+}
+
+// ── Filter children ─────────────────────────────
+function getChildStatus(c, vax) {
+  if (vax === "all") return { inBase:true, isDone: Object.keys(c.vaccines||{}).length >= DONE_THRESHOLD };
+  if (safeAge(c.birth) < safeMin(vax)) return { inBase:false, isDone:false };
+  return { inBase:true, isDone: !!c.vaccines?.[vax] };
+}
+
+function filterChildren(vax) {
+  const vl = document.getElementById("villageFilter")?.value || "all";
+  return Object.values(dashAllChildren).filter(c => {
+    if (!c.name?.trim()) return false;
+    if (stTambon !== "all" && c.tambon           !== stTambon) return false;
+    if (stType   !== "all" && (c.typeArea||"1")  !== stType)   return false;
+    if (vl       !== "all" && c.village          !== vl)       return false;
+    if (vax      !== "all" && safeAge(c.birth)   < safeMin(vax)) return false;
+    return true;
+  });
+}
+
+// ── Main render ─────────────────────────────────
+function onFilterChange() {
+  const vax = document.getElementById("vaccineFilter")?.value || "all";
+  const ch  = filterChildren(vax);
+
+  updateKPI(ch, vax);
+  drawDonut(ch, vax);
+  drawVillage(ch, vax);
+
+  document.getElementById("totalBadge").textContent = ch.length + " คน";
+}
+
+// ── KPI ─────────────────────────────────────────
+function updateKPI(children, vax) {
+  let done = 0, total = 0;
+  children.forEach(c => {
+    const s = getChildStatus(c, vax);
+    if (!s.inBase) return;
+    total++;
+    if (s.isDone) done++;
+  });
+  const pct = total > 0 ? (done/total*100).toFixed(1) : 0;
+
+  document.getElementById("dash-total").textContent   = total;
+  document.getElementById("dash-done").textContent    = done;
+  document.getElementById("dash-notdone").textContent = total - done;
+  document.getElementById("dash-percent").textContent = pct + "%";
+  document.getElementById("dash-total-sub").textContent =
+    vax === "all" ? "คนในระบบ" : `ถึงเกณฑ์ฉีด ${safeLabel(vax)}`;
+  document.getElementById("dash-done-sub").textContent =
+    vax === "all" ? "ครบ 10 เข็มขึ้นไป" : `ได้รับ ${safeLabel(vax)} แล้ว`;
+  document.getElementById("dash-pct-sub").textContent =
+    vax === "all" ? "ของเด็กทั้งหมด" : `ของเด็กที่ถึงเกณฑ์ (${total} คน)`;
+}
+
+// ── Donut ────────────────────────────────────────
+function drawDonut(children, vax) {
+  let done = 0, total = 0;
+  children.forEach(c => {
+    const s = getChildStatus(c, vax);
+    if (!s.inBase) return;
+    total++;
+    if (s.isDone) done++;
+  });
+  const pct = total > 0 ? Math.round(done/total*100) : 0;
+
+  document.getElementById("dash-donutDone").textContent    = done;
+  document.getElementById("dash-donutNot").textContent     = total - done;
+  document.getElementById("dash-donutDoneLbl").textContent =
+    vax === "all" ? "ฉีดครบแล้ว" : `ได้รับ ${safeLabel(vax)}`;
+
+  if (dashDonutInst) { dashDonutInst.destroy(); dashDonutInst = null; }
+  document.querySelector(".donut-wrap").innerHTML = '<canvas id="dashDonutChart"></canvas>';
+  const ctx = document.getElementById("dashDonutChart").getContext("2d");
+
+  dashDonutInst = new Chart(ctx, {
+    type: "doughnut",
+    data: {
+      labels: [vax === "all" ? "ฉีดครบแล้ว" : `ได้รับ ${safeLabel(vax)}`, "ยังไม่ครบ"],
+      datasets:[{ data:[done, Math.max(total-done,0)], backgroundColor:["#059669","#f87171"], borderWidth:0, hoverOffset:6 }]
+    },
+    options: {
+      cutout:"72%",
+      plugins:{
+        legend:{ display:false },
+        tooltip:{ bodyFont:{family:"IBM Plex Sans Thai",size:14},
+          callbacks:{ label: c => {
+            const p = total > 0 ? (c.parsed/total*100).toFixed(0) : 0;
+            return ` ${c.label}: ${c.parsed} คน (${p}%)`;
+          }}
+        }
+      }
+    },
+    plugins:[{
+      id:"cp", beforeDraw(chart) {
+        const {ctx,chartArea} = chart;
+        const cx = (chartArea.left+chartArea.right)/2;
+        const cy = (chartArea.top+chartArea.bottom)/2;
+        ctx.save();
+        ctx.font = "800 26px 'IBM Plex Sans Thai',sans-serif";
+        ctx.fillStyle = "#111827"; ctx.textAlign="center"; ctx.textBaseline="middle";
+        ctx.fillText(pct+"%", cx, cy);
+        ctx.restore();
+      }
+    }]
+  });
+}
+
+// ── Village Bar ──────────────────────────────────
+function drawVillage(children, vax) {
+  const vl  = document.getElementById("villageFilter")?.value || "all";
+
+  const isKolok = (stTambon === "kolok");
+  const map = {};
+
+  // โกลก: เติมครบ 31 ชุมชนก่อน
+  if (isKolok && typeof kolokCommunity !== "undefined") {
+    Object.entries(kolokCommunity).forEach(([key, info]) => {
+      map[key] = { lbl: info.name, done: 0, not: 0 };
+    });
+  }
+
+  children.forEach(c => {
+    const s = getChildStatus(c, vax);
+    if (!s.inBase) return;
+    let key, lbl;
+    if (stTambon === "all") {
+      key = c.tambon || "x";
+      lbl = tambonMap?.[c.tambon] || c.tambon || "ไม่ระบุ";
+    } else if (isKolok) {
+      key = c.village || "0";
+      const comInfo = typeof kolokCommunity !== "undefined" ? kolokCommunity[c.village] : null;
+      lbl = comInfo ? comInfo.name : (c.village ? `ชุมชน ${c.village}` : "ไม่ระบุ");
+    } else {
+      key = (c.tambon||"x") + "_" + (c.village||"0");
+      lbl = (typeof villageData !== "undefined" && villageData[c.tambon]?.[c.village])
+        ? `หมู่ ${c.village} – ${villageData[c.tambon][c.village].name}`
+        : (c.village ? `หมู่ ${c.village}` : "ไม่ระบุ");
+    }
+    if (!map[key]) map[key] = { lbl, done:0, not:0 };
+    if (s.isDone) map[key].done++; else map[key].not++;
+  });
+
+  const rows = (isKolok
+    ? Object.entries(map).sort((a,b) => parseInt(a[0]) - parseInt(b[0])).map(([,r]) => r)
+    : Object.values(map).filter(r=>r.done+r.not>0)
+        .sort((a,b) => parseInt(a.lbl.match(/\d+/)?.[0]||99) - parseInt(b.lbl.match(/\d+/)?.[0]||99))
+  );
+  const doneD = rows.map(r=>r.done);
+  const notD  = rows.map(r=>r.not);
+
+  const tLbl = stTambon === "all" ? "ทุกตำบล" : (tambonMap?.[stTambon]||stTambon);
+  const vLbl = vax === "all" ? "ทุกวัคซีน" : safeLabel(vax);
+  const vlSel = document.getElementById("villageFilter");
+  const vlLbl = (vl !== "all" && vlSel) ? " · " + (vlSel.options[vlSel.selectedIndex]?.text||"") : "";
+  document.getElementById("villageChartSub").textContent = tLbl + " · " + vLbl + vlLbl;
+
+  if (dashVillageInst) { dashVillageInst.destroy(); dashVillageInst = null; }
+  const wrap = document.getElementById("villageChartWrap");
+  wrap.style.height = Math.max(260, rows.length*44+80) + "px";
+  wrap.innerHTML = '<canvas id="dashVillageChart"></canvas>';
+  const ctx = document.getElementById("dashVillageChart").getContext("2d");
+
+  dashVillageInst = new Chart(ctx, {
+    type:"bar",
+    data:{
+      labels: rows.map(r=>r.lbl),
+      datasets:[
+        { label: vax==="all"?"ฉีดครบแล้ว":`ได้รับ ${safeLabel(vax)}`,
+          data:doneD, backgroundColor:"#059669", borderRadius:6, barThickness:18 },
+        { label:"ยังไม่ฉีด",
+          data:notD,  backgroundColor:"#f87171", borderRadius:6, barThickness:18 },
+      ]
+    },
+    options:{
+      indexAxis:"y", responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ position:"top", labels:{ font:{family:"IBM Plex Sans Thai",size:13,weight:"700"}, padding:16, usePointStyle:true } },
+        tooltip:{ bodyFont:{family:"IBM Plex Sans Thai",size:13},
+          callbacks:{ label: c => {
+            const t = (doneD[c.dataIndex]||0)+(notD[c.dataIndex]||0);
+            const p = t>0?(c.parsed.x/t*100).toFixed(0):0;
+            return ` ${c.dataset.label}: ${c.parsed.x} คน (${p}%)`;
+          }}
+        }
+      },
+      scales:{
+        x:{ grid:{color:"#f3f4f6"}, ticks:{font:{family:"IBM Plex Sans Thai",size:12}},
+            title:{display:true,text:"จำนวนเด็ก (คน)",font:{family:"IBM Plex Sans Thai",size:12},color:"#6b7280"} },
+        y:{ grid:{display:false}, ticks:{font:{family:"IBM Plex Sans Thai",size:12},padding:6} }
+      }
+    }
+  });
+}
+
+// ── Vaccine dropdown ─────────────────────────────
+function buildVaccineDropdown() {
+  const sel = document.getElementById("vaccineFilter");
+  if (!sel || typeof vaccineList === "undefined") return;
+  sel.innerHTML = '<option value="all">ทุกวัคซีน</option>';
+  vaccineList.forEach(v => {
+    const op = document.createElement("option");
+    op.value = v; op.textContent = vaccineLabel?.[v]||v;
+    sel.appendChild(op);
+  });
+}
+
+// ── Init ─────────────────────────────────────────
+document.getElementById("todayText").textContent =
+  new Date().toLocaleDateString("th-TH",{year:"numeric",month:"long",day:"numeric"});
+
+window.addEventListener("load", () => {
+  buildVaccineDropdown();
+  db.ref("children").once("value", snap => {
+    const raw = snap.val() || {};
+    Object.entries(raw).forEach(([k,v]) => { if (v?.name?.trim()) dashAllChildren[k] = v; });
+    document.getElementById("updateTime").textContent =
+      new Date().toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"}) + " น.";
+    onFilterChange();
+  });
+});
+</script>
+</body>
+</html>

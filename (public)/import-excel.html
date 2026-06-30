@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VaxKolok — นำเข้าข้อมูล Excel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<style>
+:root{
+  --ink:#0d1b2a;--ink-2:#3d5166;--ink-3:#7a909f;
+  --canvas:#f5f7fa;--surface:#fff;--border:#e3e8ef;
+  --green:#0e9f6e;--green-bg:#ecfdf5;--green-dk:#057a55;
+  --red:#e02424;--red-bg:#fef2f2;
+  --amber:#d97706;--amber-bg:#fffbeb;
+  --blue:#2563eb;--blue-bg:#eff6ff;
+  --radius:10px;--radius-lg:16px;
+  --font:'IBM Plex Sans Thai',system-ui,sans-serif
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--canvas);color:var(--ink);min-height:100vh;padding-bottom:3rem}
+.topbar{position:sticky;top:0;z-index:100;display:flex;align-items:center;gap:10px;padding:0 20px;height:52px;background:var(--surface);border-bottom:1px solid var(--border)}
+.topbar-brand{font-size:16px;font-weight:700;color:var(--ink);text-decoration:none;display:flex;align-items:center;gap:7px}
+.topbar-brand .dot{width:9px;height:9px;border-radius:50%;background:var(--green)}
+.back-btn{margin-left:auto;font-size:13px;font-weight:500;color:var(--ink-2);text-decoration:none;padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--canvas);display:flex;align-items:center;gap:5px}
+.wrap{max-width:900px;margin:0 auto;padding:1.5rem 1rem}
+h1{font-size:20px;font-weight:700;margin-bottom:4px}
+.sub{font-size:14px;color:var(--ink-2);margin-bottom:1.5rem}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.25rem;margin-bottom:1rem}
+.card-title{font-size:12px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px}
+/* Drop zone */
+.drop-zone{border:2px dashed var(--border);border-radius:var(--radius-lg);padding:2.5rem 1rem;text-align:center;cursor:pointer;transition:all .2s;background:var(--canvas)}
+.drop-zone:hover,.drop-zone.drag-over{border-color:var(--green);background:var(--green-bg)}
+.drop-icon{font-size:36px;margin-bottom:.75rem}
+.drop-title{font-size:16px;font-weight:600;color:var(--ink);margin-bottom:4px}
+.drop-sub{font-size:13px;color:var(--ink-3)}
+.drop-btn{display:inline-block;margin-top:14px;padding:9px 20px;background:var(--green);color:#fff;border-radius:var(--radius);font-size:14px;font-weight:600;cursor:pointer;border:none;font-family:var(--font)}
+#fileInput{display:none}
+/* Column mapping */
+.map-grid{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin-bottom:8px}
+.map-left{font-size:13px;background:var(--canvas);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.map-arrow{color:var(--ink-3);font-size:18px;text-align:center}
+.map-right select{width:100%;font-family:var(--font);font-size:13px;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface);color:var(--ink);outline:none}
+.map-right select:focus{border-color:var(--green)}
+/* Default values */
+.field{margin-bottom:12px}
+.field label{display:block;font-size:13px;color:var(--ink-2);margin-bottom:5px;font-weight:500}
+.field select,.field input{width:100%;font-family:var(--font);font-size:14px;padding:9px 12px;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface);color:var(--ink);outline:none}
+.field select:focus,.field input:focus{border-color:var(--green)}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+/* Preview table */
+.table-wrap{overflow-x:auto;border-radius:var(--radius);border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead{background:var(--canvas)}
+th{padding:9px 12px;text-align:left;font-weight:600;color:var(--ink-3);font-size:12px;white-space:nowrap;border-bottom:1px solid var(--border)}
+td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--ink);white-space:nowrap}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#f8fafb}
+.badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px}
+.badge-ok{background:var(--green-bg);color:var(--green-dk)}
+.badge-warn{background:var(--amber-bg);color:#92400e}
+.badge-err{background:var(--red-bg);color:var(--red)}
+/* Buttons */
+.btn-primary{padding:12px 24px;font-size:15px;font-weight:600;background:var(--green);color:#fff;border:none;border-radius:var(--radius-lg);cursor:pointer;display:inline-flex;align-items:center;gap:8px;font-family:var(--font);transition:background .15s}
+.btn-primary:hover{background:var(--green-dk)}
+.btn-primary:disabled{background:#9ca3af;cursor:not-allowed}
+.btn-secondary{padding:11px 20px;font-size:14px;background:var(--surface);color:var(--ink-2);border:1px solid var(--border);border-radius:var(--radius-lg);cursor:pointer;font-family:var(--font);display:inline-flex;align-items:center;gap:6px}
+/* Progress */
+.progress-bar-wrap{background:var(--border);border-radius:99px;height:8px;margin-top:8px;overflow:hidden}
+.progress-bar{height:100%;background:var(--green);border-radius:99px;transition:width .3s}
+.log-box{background:var(--canvas);border:1px solid var(--border);border-radius:var(--radius);padding:12px;max-height:180px;overflow-y:auto;font-size:12px;font-family:monospace;line-height:1.6}
+.log-ok{color:var(--green-dk)}.log-err{color:var(--red)}.log-info{color:var(--ink-3)}
+/* Stats */
+.stats-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:1rem}
+.stat-box{flex:1;min-width:100px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;text-align:center}
+.stat-num{font-size:24px;font-weight:700}
+.stat-label{font-size:12px;color:var(--ink-3);margin-top:2px}
+.stat-box.green .stat-num{color:var(--green-dk)}
+.stat-box.red .stat-num{color:var(--red)}
+.stat-box.amber .stat-num{color:var(--amber)}
+/* Steps */
+.steps{display:flex;gap:0;margin-bottom:1.5rem;border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+.step{flex:1;padding:10px;text-align:center;font-size:12px;font-weight:600;color:var(--ink-3);background:var(--canvas);border-right:1px solid var(--border)}
+.step:last-child{border-right:none}
+.step.active{background:var(--green-bg);color:var(--green-dk)}
+.step.done{background:var(--green);color:#fff}
+/* Hidden */
+.hidden{display:none}
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:-3px}
+.spinner-dark{display:inline-block;width:16px;height:16px;border:2px solid rgba(37,99,235,.2);border-top-color:#2563eb;border-radius:50%;animation:spin .6s linear infinite;vertical-align:-3px}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<nav class="topbar">
+  <a href="index.html" class="topbar-brand"><span class="dot"></span> VaxKolok</a>
+  <a href="index.html" class="back-btn"><i class="ti ti-arrow-left"></i> กลับ Dashboard</a>
+</nav>
+
+<div class="wrap">
+  <h1><i class="ti ti-table-import" style="color:var(--green)"></i> นำเข้าข้อมูลจาก Excel</h1>
+  <p class="sub">รองรับไฟล์ .xlsx, .xls และ .csv — นำเข้าหลายรายการพร้อมกันเข้า Firebase</p>
+
+  <!-- Steps indicator -->
+  <div class="steps">
+    <div class="step active" id="s1">① อัปโหลดไฟล์</div>
+    <div class="step" id="s2">② จับคู่คอลัมน์</div>
+    <div class="step" id="s3">③ ตรวจสอบ</div>
+    <div class="step" id="s4">④ นำเข้า</div>
+  </div>
+
+  <!-- STEP 1: Upload -->
+  <div id="step1">
+    <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()"
+         ondragover="ev.preventDefault();this.classList.add('drag-over')"
+         ondragleave="this.classList.remove('drag-over')"
+         ondrop="handleDrop(event)">
+      <div class="drop-icon">📂</div>
+      <div class="drop-title">ลากไฟล์มาวาง หรือคลิกเพื่อเลือก</div>
+      <div class="drop-sub">รองรับ .xlsx · .xls · .csv</div>
+      <button class="drop-btn" onclick="event.stopPropagation();document.getElementById('fileInput').click()">
+        <i class="ti ti-upload"></i> เลือกไฟล์
+      </button>
+    </div>
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" onchange="handleFile(this.files[0])">
+  </div>
+
+  <!-- STEP 2: Column mapping + defaults -->
+  <div id="step2" class="hidden">
+    <div class="card">
+      <p class="card-title">จับคู่คอลัมน์ Excel → ฐานข้อมูล</p>
+      <p style="font-size:13px;color:var(--ink-2);margin-bottom:14px">
+        ระบบพยายามจับคู่อัตโนมัติ — ตรวจสอบและปรับได้ตามต้องการ เลือก <strong>ไม่ใช้</strong> สำหรับคอลัมน์ที่ไม่ต้องการ
+      </p>
+      <div id="mappingRows"></div>
+    </div>
+    <div class="card">
+      <p class="card-title">ค่าเริ่มต้น (สำหรับรายการที่ไม่มีในไฟล์)</p>
+      <div class="two-col">
+        <div class="field">
+          <label>ตำบล (ค่าเริ่มต้น)</label>
+          <select id="defTambon" onchange="onTambonChange()">
+            <option value="">— ไม่ระบุ —</option>
+            <option value="puyoh">ปูโยะ</option>
+            <option value="munoh">มูโนะ</option>
+            <option value="pasemas">ปาเสมัส</option>
+            <option value="kolok">สุไหงโก-ลก</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>หมู่บ้าน (ค่าเริ่มต้น)</label>
+          <select id="defVillage" disabled>
+            <option value="">— เลือกตำบลก่อน —</option>
+          </select>
+        </div>
+      </div>
+      <div class="two-col">
+        <div class="field">
+          <label>หน่วยบริการ (ค่าเริ่มต้น)</label>
+          <select id="defHospital">
+            <option value="">— ไม่ระบุ —</option>
+            <option value="10170">รพ.สต.ปูโยะ</option>
+            <option value="10169">รพ.สต.มูโนะ</option>
+            <option value="10168">รพ.สต.ปาเสมัส</option>
+            <option value="10658">รพ.สต.บ้านกวาลอซีรา</option>
+            <option value="77729">ศูนย์แพทย์ใกล้ใจ 1</option>
+            <option value="77728">ศูนย์แพทย์ใกล้ใจ 2</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>พื้นที่ประเภท</label>
+          <select id="defTypeArea">
+            <option value="1">ในเขต (1)</option>
+            <option value="3">นอกเขต (3)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn-primary" onclick="goStep3()"><i class="ti ti-eye"></i> ตรวจสอบ Preview</button>
+      <button class="btn-secondary" onclick="goStep1()"><i class="ti ti-arrow-left"></i> เลือกไฟล์ใหม่</button>
+    </div>
+  </div>
+
+  <!-- STEP 3: Preview -->
+  <div id="step3" class="hidden">
+    <div class="stats-row" id="statsRow"></div>
+
+    <!-- ตรวจสอบ Firebase อยู่ -->
+    <div id="dupCheckStatus" style="display:none;background:var(--blue-bg);border:1px solid #93c5fd;border-radius:var(--radius-lg);padding:14px 18px;margin-bottom:1rem;font-size:14px;color:#1e40af;display:flex;align-items:center;gap:10px">
+      <span class="spinner-dark"></span> กำลังตรวจสอบข้อมูลที่มีในระบบ...
+    </div>
+
+    <!-- คำเตือนพบข้อมูลซ้ำ -->
+    <div id="dupWarning" class="hidden" style="background:var(--amber-bg);border:1.5px solid #fbbf24;border-radius:var(--radius-lg);padding:16px 18px;margin-bottom:1rem">
+      <div style="font-size:15px;font-weight:700;color:#92400e;margin-bottom:6px">
+        ⚠️ พบข้อมูลที่มีอยู่ในระบบแล้ว <span id="dupCount" style="background:#fbbf24;color:#78350f;padding:1px 10px;border-radius:99px;font-size:13px">0</span> รายการ (ตรวจสอบโดย HN + ตำบล)
+      </div>
+      <div style="font-size:13px;color:#b45309;margin-bottom:12px">
+        เลือก ✅ รายการที่ต้องการ<strong>ทับข้อมูลเดิม</strong> — รายการที่ไม่เลือกจะ<strong>ข้ามไป</strong> (วัคซีนที่บันทึกไว้จะยังคงอยู่)
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <button onclick="selectAllDups(true)"  style="font-size:12px;padding:4px 12px;border:1px solid #fbbf24;border-radius:6px;background:#fef3c7;color:#92400e;cursor:pointer;font-family:var(--font)">เลือกทั้งหมด</button>
+        <button onclick="selectAllDups(false)" style="font-size:12px;padding:4px 12px;border:1px solid #fbbf24;border-radius:6px;background:#fff;color:#92400e;cursor:pointer;font-family:var(--font)">ยกเลิกทั้งหมด</button>
+      </div>
+      <div id="dupTableWrap" style="overflow-x:auto;background:#fff;border-radius:var(--radius);border:1px solid #fde68a;margin-bottom:14px">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="background:#fffbeb">
+              <th style="padding:8px 12px;text-align:center;font-weight:600;color:#92400e;border-bottom:1px solid #fde68a;width:40px">ทับ?</th>
+              <th style="padding:8px 12px;text-align:left;font-weight:600;color:#92400e;border-bottom:1px solid #fde68a">HN</th>
+              <th style="padding:8px 12px;text-align:left;font-weight:600;color:#92400e;border-bottom:1px solid #fde68a">ชื่อในระบบ</th>
+              <th style="padding:8px 12px;text-align:left;font-weight:600;color:#92400e;border-bottom:1px solid #fde68a">ตำบล</th>
+              <th style="padding:8px 12px;text-align:left;font-weight:600;color:#92400e;border-bottom:1px solid #fde68a">ชื่อใหม่ (จากไฟล์)</th>
+            </tr>
+          </thead>
+          <tbody id="dupTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <p class="card-title" style="margin:0">Preview ข้อมูลที่จะนำเข้า</p>
+        <span style="font-size:12px;color:var(--ink-3)" id="previewCount"></span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead id="previewHead"></thead>
+          <tbody id="previewBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn-primary" id="importBtn" disabled onclick="startImport()">
+        <i class="ti ti-database-import"></i> นำเข้า Firebase
+      </button>
+      <button class="btn-secondary" onclick="goStep2()"><i class="ti ti-arrow-left"></i> แก้ไขการจับคู่</button>
+    </div>
+  </div>
+
+  <!-- STEP 4: Import progress -->
+  <div id="step4" class="hidden">
+    <div class="card">
+      <p class="card-title">กำลังนำเข้าข้อมูล</p>
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--ink-2);margin-bottom:6px">
+        <span id="progressLabel">0 / 0 รายการ</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
+      <div class="log-box" id="logBox" style="margin-top:12px"></div>
+    </div>
+    <div id="doneSection" class="hidden">
+      <div class="stats-row" id="doneStats"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn-primary" onclick="location.reload()"><i class="ti ti-plus"></i> นำเข้าไฟล์ใหม่</button>
+        <a href="index.html" style="text-decoration:none">
+          <button class="btn-secondary"><i class="ti ti-layout-dashboard"></i> กลับ Dashboard</button>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+// ─── Field definitions ──────────────────────────────────────────────
+const FIELDS = [
+  { key: "hn",      label: "HN",             required: true,  keywords: ["hn","โฮน","เลขhn"] },
+  { key: "cid",     label: "เลขบัตรประชาชน", required: false, keywords: ["cid","เลขบัตร","บัตร","เลขประชาชน","id"] },
+  { key: "name",    label: "ชื่อ-นามสกุล",   required: true,  keywords: ["ชื่อ","name","ชื่อนามสกุล","ชื่อ-นามสกุล"] },
+  { key: "birth",   label: "วันเกิด",         required: false, keywords: ["วันเกิด","birth","dob","เกิด"] },
+  { key: "house",   label: "บ้านเลขที่",        required: false, keywords: ["บ้าน","house","บ้านเลขที่","เลขที่","addr"] },
+  { key: "moo",     label: "หมู่",             required: false, keywords: ["หมู่","moo","mou","village_no","mu"] },
+  { key: "tambon",  label: "ตำบล",            required: false, keywords: ["ตำบล","tambon","subdistrict"] },
+  { key: "hospital",label: "รพ.สต.",          required: false, keywords: ["รพสต","รพ.สต","hospital","หน่วยบริการ","รพ"] },
+  { key: "phone",   label: "เบอร์โทร",        required: false, keywords: ["โทร","phone","เบอร์","tel","mobile"] },
+  { key: "caregiver",label: "ชื่อผู้ดูแล",     required: false, keywords: ["ผู้ดูแล","caregiver","ผู้ปกครอง"] },
+  { key: "note",     label: "หมายเหตุ",        required: false, keywords: ["หมายเหตุ","note","remark","หมาย"] },
+];
+
+const TAMBON_MAP = { ปูโยะ:"puyoh", มูโนะ:"munoh", ปาเสมัส:"pasemas", "สุไหงโก-ลก":"kolok", โกลก:"kolok" };
+const MONTHS_TH_SHORT = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+
+const TAMBON_DATA = {
+  puyoh:   { villages: [{val:"1",name:"หมู่ 1 - บ้านลาแล"},{val:"2",name:"หมู่ 2 - บ้านปูโยะ"},{val:"3",name:"หมู่ 3 - บ้านฆอแย"},{val:"4",name:"หมู่ 4 - บ้านน้ำตก"},{val:"5",name:"หมู่ 5 - บ้านตอออ"},{val:"6",name:"หมู่ 6 - บ้านกูยิ"}] },
+  munoh:   { villages: [{val:"1",name:"หมู่ 1 - บ้านมูโนะ"},{val:"2",name:"หมู่ 2 - บ้านลูโบะลือซง"},{val:"3",name:"หมู่ 3 - บ้านปาดังยอ"},{val:"4",name:"หมู่ 4 - บ้านปูโปะ"},{val:"5",name:"หมู่ 5 - บ้านบูเก๊ะ"}] },
+  pasemas: { villages: [{val:"1",name:"หมู่ 1 - บ้านซรายอ"},{val:"2",name:"หมู่ 2 - บ้านตือระ"},{val:"3",name:"หมู่ 3 - บ้านปาเสมัส"},{val:"4",name:"หมู่ 4 - บ้านน้ำตก"},{val:"5",name:"หมู่ 5 - บ้านกวาลอซีรา"},{val:"6",name:"หมู่ 6 - บ้านซรายอออก"},{val:"7",name:"หมู่ 7 - บ้านกูแบอีแก"},{val:"8",name:"หมู่ 8 - บ้านศาลาใหม่"}] },
+  kolok: { villages: [
+    {val:"1",name:"ชุมชนกูโบร์"},{val:"2",name:"ชุมชนโต๊ะลือเบ"},{val:"3",name:"ชุมชนตันหยงมะลิ"},
+    {val:"4",name:"ชุมชนโก-ลกวิลเลจ"},{val:"5",name:"ชุมชนบือเร็ง"},{val:"6",name:"ชุมชนกือดำบำรู"},
+    {val:"7",name:"ชุมชนกือบงกำแม"},{val:"8",name:"ชุมชนหัวสะพาน"},{val:"9",name:"ชุมชนเสาสัญญาณ"},
+    {val:"10",name:"ชุมชนดงงูเห่า"},{val:"11",name:"ชุมชนหลังด่าน"},{val:"12",name:"ชุมชนมัสยิดกลาง"},
+    {val:"13",name:"ชุมชนจือแลตูลี"},{val:"14",name:"ชุมชนสันติสุข"},{val:"15",name:"ชุมชนปาโงปิเมง"},
+    {val:"16",name:"ชุมชนปาโงเปาะเล็ง"},{val:"17",name:"ชุมชนโปฮงยามู"},{val:"18",name:"ชุมชนอริศรา"},
+    {val:"19",name:"ชุมชนเจริญสุข"},{val:"20",name:"ชุมชนหัวกุญแจ"},{val:"21",name:"ชุมชนสวนมะพร้าว"},
+    {val:"22",name:"ชุมชนท่ากอไผ่"},{val:"23",name:"ชุมชนท่าประปา"},{val:"24",name:"ชุมชนท่าโรงเลื่อย"},
+    {val:"25",name:"ชุมชนหลังล้อแม็ก"},{val:"26",name:"ชุมชนศรีอามาน"},{val:"27",name:"ชุมชนทรายทอง"},
+    {val:"28",name:"ชุมชนบือเร็งใน"},{val:"29",name:"ชุมชนซรีจาฮายา"},{val:"30",name:"ชุมชนเจริญทรัพย์"},
+    {val:"31",name:"ชุมชนเจริญเขต"},
+  ] },
+};
+
+let rawRows = [];       // array of objects from Excel
+let headers = [];       // column header strings
+let columnMapping = {}; // colIndex → field key
+let mappedRows = [];    // after applying mapping
+let duplicateMap = {};  // hn → { key, data } — populated by checkDuplicates()
+
+if (!localStorage.getItem("user")) window.location.href = "login.html";
+
+// ─── อัปเดต dropdown หมู่บ้านเมื่อเลือกตำบล ─────────────────────────
+function onTambonChange() {
+  const tambon = document.getElementById("defTambon").value;
+  const vEl    = document.getElementById("defVillage");
+  const hEl    = document.getElementById("defHospital");
+
+  if (!tambon || !TAMBON_DATA[tambon]) {
+    vEl.innerHTML = `<option value="">— เลือกตำบลก่อน —</option>`;
+    vEl.disabled  = true;
+    return;
+  }
+
+  const villages = TAMBON_DATA[tambon].villages;
+  vEl.innerHTML  = `<option value="">— ไม่ระบุ —</option>` +
+    villages.map(v => `<option value="${v.val}">${v.name}</option>`).join("");
+  vEl.disabled   = false;
+}
+
+// ─── Step nav helpers ────────────────────────────────────────────────
+function setStep(n) {
+  [1,2,3,4].forEach(i => {
+    document.getElementById("step"+i).classList.toggle("hidden", i !== n);
+    const el = document.getElementById("s"+i);
+    if (i < n) { el.className = "step done"; }
+    else if (i === n) { el.className = "step active"; }
+    else { el.className = "step"; }
+  });
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+function goStep1() { setStep(1); }
+function goStep2() { setStep(2); }
+
+// ─── File handling ───────────────────────────────────────────────────
+function handleDrop(ev) {
+  ev.preventDefault();
+  document.getElementById("dropZone").classList.remove("drag-over");
+  const file = ev.dataTransfer.files[0];
+  if (file) handleFile(file);
+}
+
+function handleFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: "array", cellDates: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+      if (json.length < 2) { alert("ไฟล์ไม่มีข้อมูล"); return; }
+      headers = json[0].map(h => String(h).trim());
+      rawRows = json.slice(1).filter(r => r.some(c => c !== ""));
+      buildMappingUI();
+      setStep(2);
+    } catch(err) { alert("อ่านไฟล์ไม่สำเร็จ: " + err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ─── Auto-detect column mapping ─────────────────────────────────────
+function autoDetect(header) {
+  const h = header.toLowerCase().replace(/\s/g,"");
+  for (const f of FIELDS) {
+    if (f.keywords.some(k => h.includes(k.toLowerCase()))) return f.key;
+  }
+  return "";
+}
+
+function buildMappingUI() {
+  const container = document.getElementById("mappingRows");
+  container.innerHTML = "";
+  columnMapping = {};
+  headers.forEach((h, i) => {
+    const detected = autoDetect(h);
+    if (detected) columnMapping[i] = detected;
+    const row = document.createElement("div");
+    row.className = "map-grid";
+    row.innerHTML = `
+      <div class="map-left" title="${h}">คอลัมน์ ${i+1}: ${h || "(ไม่มีหัว)"}</div>
+      <div class="map-arrow"><i class="ti ti-arrow-right"></i></div>
+      <div class="map-right">
+        <select onchange="columnMapping[${i}]=this.value">
+          <option value="">— ไม่ใช้ —</option>
+          ${FIELDS.map(f=>`<option value="${f.key}" ${detected===f.key?"selected":""}>${f.label}${f.required?" *":""}</option>`).join("")}
+        </select>
+      </div>`;
+    container.appendChild(row);
+  });
+}
+
+// ─── Parse & normalize a row ─────────────────────────────────────────
+function parseRow(row) {
+  const obj = {};
+  Object.entries(columnMapping).forEach(([colIdx, fieldKey]) => {
+    if (!fieldKey) return;
+    obj[fieldKey] = String(row[colIdx] ?? "").trim();
+  });
+  return obj;
+}
+
+function normalizeBirth(raw) {
+  if (!raw) return "";
+  // Already JS Date from SheetJS
+  if (raw instanceof Date) {
+    return raw.toISOString().split("T")[0];
+  }
+  raw = String(raw).trim();
+  // dd/mm/yyyy or dd/mm/yy
+  if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(raw)) {
+    let [d,m,y] = raw.split("/").map(Number);
+    if (y > 2500) y -= 543; // BE → CE
+    else if (y < 100) y += 2000;
+    return `${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+  }
+  // yyyy-mm-dd
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const y = parseInt(raw);
+    if (y > 2500) return `${y-543}${raw.slice(4)}`; // BE
+    return raw;
+  }
+  return "";
+}
+
+function normalizeTambon(raw) {
+  if (!raw) return document.getElementById("defTambon").value;
+  const key = TAMBON_MAP[raw.trim()];
+  if (key) return key;
+  return raw.toLowerCase().replace(/\s/g,"");
+}
+
+function normalizeHospital(raw) {
+  if (!raw) return document.getElementById("defHospital").value;
+  return raw.trim();
+}
+
+function thaiDate(iso) {
+  if (!iso) return "—";
+  const [y,m,d] = iso.split("-").map(Number);
+  return `${d} ${MONTHS_TH_SHORT[m-1]} ${y+543}`;
+}
+
+// ─── Step 3: Preview ─────────────────────────────────────────────────
+function goStep3() {
+  const usedFields = Object.values(columnMapping).filter(Boolean);
+  const missing = FIELDS.filter(f => f.required && !usedFields.includes(f.key)).map(f => f.label);
+  if (missing.length) { alert("ต้องมีคอลัมน์: " + missing.join(", ")); return; }
+
+  mappedRows = rawRows.map(r => {
+    const raw = parseRow(r);
+    return {
+      hn:       raw.hn    || "",
+      cid:      raw.cid   || "",
+      name:     raw.name  || "",
+      birth:    normalizeBirth(raw.birth),
+      house:    raw.house || "",   // บ้านเลขที่ → field "house" ใน Firebase
+      village:  raw.moo   || "",   // เลขหมู่   → field "village" ใน Firebase (ใช้ select dropdown)
+      tambon:   normalizeTambon(raw.tambon),
+      hospital: normalizeHospital(raw.hospital),
+      phone:    raw.phone || "",
+      caregiver: raw.caregiver || "",
+      note:      raw.note || "",
+    };
+  });
+
+  const okRows  = mappedRows.filter(r => r.hn && r.name);
+  const warnRows = mappedRows.filter(r => r.hn && r.name && !r.birth);
+  const errRows  = mappedRows.filter(r => !r.hn || !r.name);
+
+  document.getElementById("statsRow").innerHTML = `
+    <div class="stat-box green"><div class="stat-num">${okRows.length}</div><div class="stat-label">พร้อมนำเข้า</div></div>
+    <div class="stat-box amber"><div class="stat-num">${warnRows.length}</div><div class="stat-label">ไม่มีวันเกิด</div></div>
+    <div class="stat-box red"><div class="stat-num">${errRows.length}</div><div class="stat-label">ข้อมูลไม่ครบ</div></div>
+    <div class="stat-box"><div class="stat-num">${mappedRows.length}</div><div class="stat-label">ทั้งหมด</div></div>
+  `;
+
+  document.getElementById("previewCount").textContent =
+    `แสดง ${Math.min(mappedRows.length,50)} จาก ${mappedRows.length} รายการ`;
+
+  renderPreviewTable();
+  setStep(3);
+
+  // รีเซ็ต checkbox + ปิดปุ่ม แล้วตรวจสอบ Firebase
+  duplicateMap = {};
+  const chk = document.getElementById("confirmOverwrite");
+  if (chk) chk.checked = false;
+  document.getElementById("dupWarning").classList.add("hidden");
+  document.getElementById("importBtn").disabled = true;
+  checkDuplicates();
+}
+
+function renderPreviewTable() {
+  const defTambon = document.getElementById("defTambon").value;
+  document.getElementById("previewHead").innerHTML = `<tr>
+    <th>#</th><th>สถานะ</th><th>HN</th><th>ชื่อ-นามสกุล</th><th>วันเกิด</th><th>ตำบล</th><th>หมู่</th><th>โทร</th>
+  </tr>`;
+  const tbody = document.getElementById("previewBody");
+  tbody.innerHTML = "";
+  mappedRows.slice(0, 50).forEach((r, i) => {
+    const hasErr    = !r.hn || !r.name;
+    const rowTambon = r.tambon || defTambon;
+    const dupKey    = `${r.hn}__${rowTambon}`;
+    const isDup     = !!duplicateMap[dupKey];
+    const hasWarn   = !hasErr && !r.birth;
+    const badge = hasErr
+      ? `<span class="badge badge-err">ข้อมูลไม่ครบ</span>`
+      : isDup
+        ? `<span class="badge badge-warn">ซ้ำ (HN+ตำบล)</span>`
+        : hasWarn
+          ? `<span class="badge badge-warn">ไม่มีวันเกิด</span>`
+          : `<span class="badge badge-ok">เพิ่มใหม่</span>`;
+    tbody.innerHTML += `<tr>
+      <td>${i+1}</td><td>${badge}</td>
+      <td>${r.hn||"—"}</td><td>${r.name||"—"}</td>
+      <td>${thaiDate(r.birth)}</td><td>${r.tambon||"—"}</td>
+      <td>${r.village||"—"}</td><td>${r.phone||"—"}</td>
+    </tr>`;
+  });
+}
+
+async function checkDuplicates() {
+  const statusEl = document.getElementById("dupCheckStatus");
+  statusEl.style.display = "flex";
+
+  duplicateMap = {};
+  const defTambon  = document.getElementById("defTambon").value;
+  const TAMBON_LABEL = { kolok:"สุไหงโก-ลก", munoh:"มูโนะ", puyoh:"ปูโยะ", pasemas:"ปาเสมัส" };
+
+  // ค้นหาเฉพาะ HN ที่ไม่ซ้ำ
+  const uniqueHNs = [...new Set(mappedRows.filter(r => r.hn).map(r => r.hn))];
+
+  for (const hn of uniqueHNs) {
+    const snap = await db.ref("children").orderByChild("hn").equalTo(hn).once("value");
+    if (!snap.exists()) continue;
+
+    // อาจพบหลาย record (HN เดียวกัน ต่างโรงพยาบาล/ตำบล)
+    snap.forEach(child => {
+      const childData   = child.val();
+      const childKey    = child.key;
+      const childTambon = childData.tambon || "";
+
+      // หา row ที่มี HN นี้ในไฟล์ Excel
+      const matchingRow = mappedRows.find(r => {
+        const rowTambon = r.tambon || defTambon;
+        return r.hn === hn && rowTambon === childTambon;
+      });
+
+      if (matchingRow) {
+        // ตรงกันทั้ง HN + ตำบล = ซ้ำจริง
+        const rowTambon = matchingRow.tambon || defTambon;
+        const dupKey    = `${hn}__${rowTambon}`;
+        duplicateMap[dupKey] = { key: childKey, data: childData, selected: false };
+      }
+    });
+  }
+
+  statusEl.style.display = "none";
+  const dupCount = Object.keys(duplicateMap).length;
+
+  if (dupCount > 0) {
+    document.getElementById("dupCount").textContent = dupCount;
+
+    const rows = Object.entries(duplicateMap).map(([dupKey, {data}]) => {
+      const [hn] = dupKey.split("__");
+      const newRow = mappedRows.find(r => {
+        const rt = r.tambon || defTambon;
+        return r.hn === hn && `${hn}__${rt}` === dupKey;
+      });
+      const tdStyle = "padding:8px 12px;border-bottom:1px solid #fde68a";
+      return `<tr>
+        <td style="${tdStyle};text-align:center">
+          <input type="checkbox" data-dup-key="${dupKey}"
+            onchange="toggleDupSelect('${dupKey}',this.checked)"
+            style="width:16px;height:16px;accent-color:var(--amber);cursor:pointer">
+        </td>
+        <td style="${tdStyle}">${hn}</td>
+        <td style="${tdStyle};color:#92400e">${data.name||"—"}</td>
+        <td style="${tdStyle}">${TAMBON_LABEL[data.tambon]||data.tambon||"—"}</td>
+        <td style="${tdStyle};font-weight:600">${newRow?.name||"—"}</td>
+      </tr>`;
+    }).join("");
+    document.getElementById("dupTableBody").innerHTML = rows;
+    document.getElementById("dupWarning").classList.remove("hidden");
+  } else {
+    document.getElementById("dupWarning").classList.add("hidden");
+  }
+
+  // เปิดปุ่มนำเข้าได้เสมอ — ผู้ใช้เลือกเองว่าจะทับรายการไหน
+  document.getElementById("importBtn").disabled = false;
+  renderPreviewTable();
+}
+
+function toggleDupSelect(dupKey, checked) {
+  if (duplicateMap[dupKey]) duplicateMap[dupKey].selected = checked;
+}
+
+function selectAllDups(checked) {
+  Object.keys(duplicateMap).forEach(k => {
+    duplicateMap[k].selected = checked;
+    const cb = document.querySelector(`input[data-dup-key="${k}"]`);
+    if (cb) cb.checked = checked;
+  });
+}
+
+function toggleImportBtn() {} // ไม่ใช้แล้ว — ปุ่มเปิดหลัง check เสมอ
+
+// ─── Step 4: Import ──────────────────────────────────────────────────
+async function startImport() {
+  const validRows = mappedRows.filter(r => r.hn && r.name);
+  if (!validRows.length) { alert("ไม่มีข้อมูลที่พร้อมนำเข้า"); return; }
+
+  document.getElementById("importBtn").disabled = true;
+  setStep(4);
+
+  const logBox = document.getElementById("logBox");
+  const bar = document.getElementById("progressBar");
+  const label = document.getElementById("progressLabel");
+  const pct = document.getElementById("progressPct");
+
+  let created = 0, updated = 0, fail = 0;
+  const total = validRows.length;
+  const defTambon   = document.getElementById("defTambon").value;
+  const defVillage  = document.getElementById("defVillage").value;
+  const defHospital = document.getElementById("defHospital").value;
+  const defTypeArea = document.getElementById("defTypeArea").value;
+  // สร้างชื่อหมู่บ้าน default จาก TAMBON_DATA ถ้าเลือกไว้
+  const defVillageName = (() => {
+    if (!defTambon || !defVillage) return "";
+    const v = (TAMBON_DATA[defTambon]?.villages || []).find(x => x.val === defVillage);
+    return v ? v.name : defVillage;
+  })();
+
+  function log(msg, cls = "log-info") {
+    logBox.innerHTML += `<div class="${cls}">${msg}</div>`;
+    logBox.scrollTop = logBox.scrollHeight;
+  }
+  function updateProgress(i) {
+    const p = Math.round((i / total) * 100);
+    bar.style.width = p + "%";
+    label.textContent = `${i} / ${total} รายการ`;
+    pct.textContent = p + "%";
+  }
+
+  log(`เริ่มตรวจสอบและนำเข้า ${total} รายการ...`);
+
+  for (let i = 0; i < validRows.length; i++) {
+    const r = validRows[i];
+    try {
+      const rowTambon  = r.tambon || defTambon;
+      const dupKey     = `${r.hn}__${rowTambon}`;
+      const existing   = duplicateMap[dupKey]; // ตรวจโดย HN + ตำบล
+
+      if (existing && !existing.selected) {
+        // พบในระบบ แต่ผู้ใช้ไม่เลือกทับ → ข้าม
+        log(`⏭ ข้าม HN ${r.hn} (${r.name}) — ไม่ได้เลือกทับ`, "log-info");
+        continue;
+      }
+
+      if (existing) {
+        // ── พบในระบบ + เลือกทับ ─────────────────────────────────────
+        const { key: existingKey, data: existingData } = existing;
+        const existingTambon = existingData.tambon || "";
+
+        if (existingTambon && rowTambon && existingTambon !== rowTambon) {
+          log(`🔄 HN ${r.hn} (${r.name}) — ตำบลเปลี่ยน: ${existingTambon} → ${rowTambon}`, "log-info");
+        } else {
+          log(`🔄 HN ${r.hn} (${r.name}) — ทับข้อมูลเดิม`, "log-info");
+        }
+
+        // s() ป้องกัน undefined ไม่ให้ส่งเข้า Firebase
+        const s = v => (v === undefined || v === null) ? "" : String(v);
+        const updatePayload = {
+          name:      s(r.name)    || s(existingData.name),
+          cid:       s(r.cid)     || s(existingData.cid),
+          birth:     s(r.birth)   || s(existingData.birth),
+          house:     s(r.house)    || s(existingData.house),
+          village:   s(r.village)  || defVillage || s(existingData.village),
+          tambon:    s(rowTambon)  || s(existingData.tambon),
+          hospital:  s(r.hospital || defHospital) || s(existingData.hospital),
+          phone:     s(r.phone)    || s(existingData.phone),
+          caregiver: s(r.caregiver) || s(existingData.caregiver),
+          note:      s(r.note)      || s(existingData.note),
+          updatedAt: new Date().toLocaleString("th-TH"),
+        };
+        // ลบ field ที่ยังเป็นค่าว่างออก (ไม่ทับด้วยค่าว่าง)
+        Object.keys(updatePayload).forEach(k => { if (!updatePayload[k]) delete updatePayload[k]; });
+
+        await db.ref("children/" + existingKey).update(updatePayload);
+        const sympUpdate = {
+          name:  s(updatePayload.name  || existingData.name),
+          cid:   s(updatePayload.cid   || existingData.cid),
+          birth: s(updatePayload.birth || existingData.birth),
+          phone: s(updatePayload.phone || existingData.phone),
+        };
+        // ลบ field ว่างออกก่อนส่ง Firebase
+        Object.keys(sympUpdate).forEach(k => { if (!sympUpdate[k]) delete sympUpdate[k]; });
+        if (Object.keys(sympUpdate).length) {
+          await db.ref("symptoms/" + existingKey).update(sympUpdate);
+        }
+        log(`  ✅ อัปเดตสำเร็จ`, "log-ok");
+        updated++;
+
+      } else {
+        // ── ไม่พบ HN → สร้างใหม่ ─────────────────────────────────────
+        const payload = {
+          hn:        r.hn,
+          cid:       r.cid,
+          name:      r.name,
+          birth:     r.birth,
+          house:     r.house    || "",
+          village:   r.village  || defVillage,
+          tambon:    rowTambon,
+          hospital:  r.hospital || defHospital,
+          phone:     r.phone    || "",
+          caregiver: r.caregiver || "",
+          note:      r.note      || "",
+          vaccines:  {},
+          typeArea:  defTypeArea,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toLocaleString("th-TH"),
+        };
+        const ref = db.ref("children").push();
+        await ref.set(payload);
+        await db.ref("symptoms/" + ref.key).set({
+          name: r.name, hn: r.hn, cid: r.cid, birth: r.birth,
+          phone: r.phone, vaccines: {},
+          symptom: "ยังไม่ระบุ", level: "🟢 ปกติ",
+          status: "รอติดตาม", priority: 99, time: Date.now()
+        });
+        log(`✅ เพิ่มใหม่ ${r.name} (HN: ${r.hn})`, "log-ok");
+        created++;
+      }
+    } catch(err) {
+      log(`❌ ผิดพลาด HN ${r.hn}: ${err.message}`, "log-err");
+      fail++;
+    }
+    updateProgress(i + 1);
+    // small delay to avoid rate-limiting
+    if (i % 10 === 9) await new Promise(res => setTimeout(res, 300));
+  }
+
+  log(`─────────────────────────────`);
+  log(`เสร็จสิ้น: เพิ่มใหม่ ${created} · อัปเดต ${updated} · ผิดพลาด ${fail}`, fail === 0 ? "log-ok" : "log-info");
+
+  document.getElementById("doneStats").innerHTML = `
+    <div class="stat-box green"><div class="stat-num">${created}</div><div class="stat-label">เพิ่มใหม่</div></div>
+    <div class="stat-box amber"><div class="stat-num">${updated}</div><div class="stat-label">อัปเดตแล้ว</div></div>
+    <div class="stat-box red"><div class="stat-num">${fail}</div><div class="stat-label">ผิดพลาด</div></div>
+    <div class="stat-box"><div class="stat-num">${created+updated+fail}</div><div class="stat-label">ทั้งหมด</div></div>
+  `;
+  document.getElementById("doneSection").classList.remove("hidden");
+}
+</script>
+</body>
+</html>

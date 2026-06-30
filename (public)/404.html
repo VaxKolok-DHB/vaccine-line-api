@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>404</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f8f8f8;
+    font-family: 'Segoe UI', sans-serif;
+    color: #111;
+    overflow: hidden;
+  }
+
+  .wrap {
+    text-align: center;
+    position: relative;
+  }
+
+  /* ตัวเลข 404 แต่ละตัวแยกกัน */
+  .num {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    line-height: 1;
+  }
+
+  .d {
+    font-size: 130px;
+    font-weight: 200;
+    letter-spacing: -2px;
+    color: #ddd;
+    display: inline-block;
+    transition: color 0.3s, transform 0.3s;
+  }
+
+  /* ตัว 0 ตรงกลาง — วนไปมา */
+  .d.zero {
+    animation: wobble 3s ease-in-out infinite;
+    color: #ccc;
+    cursor: default;
+  }
+
+  @keyframes wobble {
+    0%,100% { transform: rotate(-4deg); }
+    50%      { transform: rotate(4deg); }
+  }
+
+  /* hover ตัว 4 */
+  .d.four:hover {
+    color: #2ec4c7;
+    transform: translateY(-8px);
+  }
+
+  .msg {
+    font-size: 15px;
+    color: #999;
+    margin-top: 16px;
+    animation: fadeIn 1s ease both;
+    animation-delay: 0.3s;
+    opacity: 0;
+  }
+
+  .back {
+    display: inline-block;
+    margin-top: 24px;
+    font-size: 13px;
+    color: #555;
+    text-decoration: none;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 1px;
+    transition: color 0.2s, border-color 0.2s;
+    animation: fadeIn 1s ease both;
+    animation-delay: 0.6s;
+    opacity: 0;
+  }
+
+  .back:hover { color: #2ec4c7; border-color: #2ec4c7; }
+
+  /* particles */
+  .dot {
+    position: fixed;
+    border-radius: 50%;
+    opacity: 0;
+    animation: float linear infinite;
+    pointer-events: none;
+  }
+
+  @keyframes float {
+    0%   { transform: translateY(110vh) scale(0); opacity: 0; }
+    10%  { opacity: 0.35; }
+    90%  { opacity: 0.2; }
+    100% { transform: translateY(-10vh) scale(1); opacity: 0; }
+  }
+
+  @keyframes fadeIn {
+    to { opacity: 1; }
+  }
+
+  /* เส้นกระพริบ cursor-like หลัง 404 */
+  .cursor {
+    display: inline-block;
+    width: 3px;
+    height: 80px;
+    background: #2ec4c7;
+    border-radius: 2px;
+    margin-left: 4px;
+    vertical-align: middle;
+    animation: blink 1s step-end infinite;
+  }
+
+  @keyframes blink {
+    0%,100% { opacity: 1; }
+    50%      { opacity: 0; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="wrap">
+    <div class="num">
+      <span class="d four">4</span>
+      <span class="d zero">0</span>
+      <span class="d four">4</span>
+      <span class="cursor"></span>
+    </div>
+    <p class="msg">ไม่พบหน้าที่ต้องการ</p>
+    <a href="index.html" class="back">กลับหน้าหลัก</a>
+  </div>
+
+  <script>
+    // สร้าง floating dots
+    const colors = ['#2ec4c7','#b2ebf2','#e0f7fa','#80deea'];
+    for (let i = 0; i < 18; i++) {
+      const el = document.createElement('div');
+      el.className = 'dot';
+      const size = Math.random() * 10 + 4;
+      el.style.cssText = `
+        width:${size}px; height:${size}px;
+        left:${Math.random()*100}vw;
+        background:${colors[Math.floor(Math.random()*colors.length)]};
+        animation-duration:${Math.random()*10+8}s;
+        animation-delay:${Math.random()*8}s;
+      `;
+      document.body.appendChild(el);
+    }
+  </script>
+
+</body>
+</html>

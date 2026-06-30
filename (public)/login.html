@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VaxKolok — ระบบติดตามวัคซีนเด็ก</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'IBM Plex Sans Thai',sans-serif;background:#f8fafc;min-height:100vh;display:flex;flex-direction:column;color:#0d1b2a;}
+header{padding:18px 32px;display:flex;align-items:center;justify-content:space-between;background:#fff;border-bottom:1px solid #e8edf3;}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none;}
+.logo-dot{width:12px;height:12px;border-radius:50%;background:linear-gradient(135deg,#0e9f6e,#06b6d4);box-shadow:0 0 0 3px rgba(14,159,110,.15);}
+.logo-text{font-size:19px;font-weight:800;color:#0d1b2a;letter-spacing:-.3px;}
+.hero{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 24px 40px;text-align:center;}
+.badge{display:inline-flex;align-items:center;gap:8px;background:#ecfdf5;color:#0e9f6e;font-size:12px;font-weight:600;padding:6px 16px;border-radius:99px;margin-bottom:28px;border:1px solid #a7f3d0;letter-spacing:.04em;}
+h1{font-size:clamp(30px,5.5vw,52px);font-weight:800;color:#0d1b2a;line-height:1.18;margin-bottom:16px;letter-spacing:-.5px;}
+h1 em{color:#0e9f6e;font-style:normal;}
+.subtitle{font-size:15px;color:#64748b;max-width:460px;line-height:1.75;margin-bottom:48px;}
+.live-stats{display:flex;align-items:center;gap:0;justify-content:center;background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:20px 32px;margin-bottom:52px;box-shadow:0 4px 20px rgba(0,0,0,.05);}
+.stat{text-align:center;padding:0 28px;}
+.stat-num{font-size:32px;font-weight:800;line-height:1;color:#0d1b2a;font-variant-numeric:tabular-nums;}
+.stat-num.green{color:#0e9f6e;}.stat-num.blue{color:#2563eb;}.stat-num.orange{color:#d97706;}
+.stat-label{font-size:11px;color:#94a3b8;font-weight:600;margin-top:5px;text-transform:uppercase;letter-spacing:.05em;}
+.stat-sep{width:1px;height:40px;background:#e2e8f0;}
+.cta-row{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;}
+.cta-card{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:28px 28px 24px;border-radius:20px;text-decoration:none;width:240px;transition:transform .2s,box-shadow .2s;position:relative;overflow:hidden;}
+.cta-card:hover{transform:translateY(-5px);}
+.cta-card.dashboard{background:linear-gradient(135deg,#0e9f6e 0%,#059669 100%);color:#fff;box-shadow:0 8px 28px rgba(14,159,110,.38);}
+.cta-card.dashboard:hover{box-shadow:0 18px 48px rgba(14,159,110,.48);}
+.cta-card.login{background:#fff;color:#0d1b2a;border:2px solid #e2e8f0;box-shadow:0 4px 16px rgba(0,0,0,.06);}
+.cta-card.login:hover{border-color:#2563eb;box-shadow:0 12px 32px rgba(37,99,235,.12);}
+.cta-icon{width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:8px;}
+.cta-card.dashboard .cta-icon{background:rgba(255,255,255,.2);color:#fff;}
+.cta-card.login .cta-icon{background:#eff6ff;color:#2563eb;}
+.cta-title{font-size:18px;font-weight:700;}
+.cta-desc{font-size:13px;opacity:.75;line-height:1.55;}
+.cta-arrow{margin-top:12px;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;background:rgba(255,255,255,.2);}
+.cta-card.login .cta-arrow{background:#eff6ff;color:#2563eb;}
+.features{display:flex;gap:28px;justify-content:center;flex-wrap:wrap;margin-top:52px;padding-top:40px;border-top:1px solid #e8edf3;max-width:680px;width:100%;}
+.feat{display:flex;align-items:flex-start;gap:10px;font-size:13px;color:#64748b;max-width:180px;text-align:left;}
+.feat-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;margin-top:1px;}
+.feat-icon.g{background:#ecfdf5;color:#0e9f6e;}.feat-icon.b{background:#eff6ff;color:#2563eb;}.feat-icon.o{background:#fffbeb;color:#d97706;}
+.feat strong{display:block;color:#374151;font-weight:600;margin-bottom:2px;font-size:13px;}
+footer{padding:20px 24px;text-align:center;font-size:12px;color:#94a3b8;border-top:1px solid #e8edf3;background:#fff;}
+@media(max-width:540px){.cta-card{width:100%;max-width:100%;}.cta-row{width:100%;max-width:340px;}.live-stats{padding:16px 20px;}.stat{padding:0 16px;}.stat-num{font-size:26px;}.features{gap:16px;}}
+@media(max-width:360px){.stat-sep{display:none;}.live-stats{flex-wrap:wrap;gap:12px;}.stat{padding:0 8px;}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    <div><div class="logo-text">VaxKolok</div></div>
+  </div>
+  <span style="font-size:12px;color:#94a3b8;font-weight:500;">อ.สุไหงโก-ลก · จ.นราธิวาส</span>
+</header>
+
+<main class="hero">
+
+  <div class="badge">
+    <i class="fa-solid fa-house-medical"></i> ระบบสาธารณสุขดิจิทัล
+  </div>
+
+  <h1>ติดตามวัคซีนเด็ก<br><em>อย่างรวดเร็ว</em></h1>
+
+  <p class="subtitle">
+    ระบบติดตามการฉีดวัคซีนเด็กในพื้นที่อำเภอสุไหงโก-ลก<br>
+    เช็คสถานะ ดูกราฟ และบันทึกข้อมูลได้ครบในที่เดียว
+  </p>
+
+  <div class="live-stats">
+    <div class="stat">
+      <div class="stat-num blue" id="sTotal">—</div>
+      <div class="stat-label">เด็กในระบบ</div>
+    </div>
+    <div class="stat-sep"></div>
+    <div class="stat">
+      <div class="stat-num green" id="sDone">—</div>
+      <div class="stat-label">ฉีดครบแล้ว</div>
+    </div>
+    <div class="stat-sep"></div>
+    <div class="stat">
+      <div class="stat-num orange" id="sPct">—</div>
+      <div class="stat-label">ความครอบคลุม</div>
+    </div>
+  </div>
+
+  <div class="cta-row">
+    <a href="dashboard.html" class="cta-card dashboard">
+      <div class="cta-icon"><i class="fa-solid fa-chart-line"></i></div>
+      <div class="cta-title">ดูแดชบอร์ด</div>
+      <div class="cta-desc">ภาพรวมสถิติการฉีดวัคซีน กราฟ และความครอบคลุม เข้าดูได้เลย</div>
+      <div class="cta-arrow"><i class="fa-solid fa-arrow-right"></i></div>
+    </a>
+    <a href="landing.html" class="cta-card login">
+      <div class="cta-icon"><i class="fa-solid fa-right-to-bracket"></i></div>
+      <div class="cta-title">เข้าสู่ระบบ</div>
+      <div class="cta-desc">สำหรับเจ้าหน้าที่ เพื่อดูรายชื่อ บันทึก และจัดการข้อมูล</div>
+      <div class="cta-arrow"><i class="fa-solid fa-arrow-right"></i></div>
+    </a>
+    <a href="primary.html" class="cta-card login">
+      <div class="cta-icon"><i class="fa-solid fa-school"></i></div>
+      <div class="cta-title">วัคซีนประถมศึกษา</div>
+      <div class="cta-desc">ติดตามวัคซีน ป.1–ป.6 DTP5, OPV5, dT และ HPV แยกรายชั้น</div>
+      <div class="cta-arrow"><i class="fa-solid fa-arrow-right"></i></div>
+    </a>
+  </div>
+
+
+
+  <div class="features">
+    <div class="feat">
+      <div class="feat-icon g"><i class="fa-solid fa-syringe"></i></div>
+      <div><strong>ติดตามวัคซีน 25 รายการ</strong>ครอบคลุมตั้งแต่แรกเกิดจนถึง ป.6</div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon b"><i class="fa-solid fa-mobile-screen-button"></i></div>
+      <div><strong>แจ้งเตือนผ่าน LINE</strong>ผู้ปกครองรับรายงานอาการหลังฉีดอัตโนมัติ</div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon o"><i class="fa-solid fa-location-dot"></i></div>
+      <div><strong>แยกรายตำบล-หมู่บ้าน</strong>ดูข้อมูลได้ตามพื้นที่รับผิดชอบ</div>
+    </div>
+  </div>
+
+</main>
+
+<footer>VaxKolok · ระบบติดตามวัคซีนเด็ก อำเภอสุไหงโก-ลก จังหวัดนราธิวาส</footer>
+
+<script>
+firebase.initializeApp({
+  apiKey:"HnOSpjSHma268VX3glsVJ9idzj9Uc1jjcqkJ7P11",
+  databaseURL:"https://vaccine-dashboard-bc687-default-rtdb.firebaseio.com/"
+});
+const db = firebase.database();
+
+function animateCount(el, target, suffix) {
+  const dur = 800, start = Date.now();
+  const step = () => {
+    const p = Math.min(1, (Date.now() - start) / dur);
+    const ease = 1 - Math.pow(1 - p, 3);
+    el.textContent = Math.round(ease * target) + (suffix || "");
+    if (p < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+db.ref("children").once("value", snap => {
+  const data = snap.val() || {};
+  const arr  = Object.values(data).filter(c => c?.name?.trim());
+  const total = arr.length;
+  const done  = arr.filter(c => Object.keys(c.vaccines || {}).length >= 10).length;
+  const pct   = total > 0 ? ((done / total) * 100).toFixed(1) : "0.0";
+  animateCount(document.getElementById("sTotal"), total);
+  animateCount(document.getElementById("sDone"),  done);
+  document.getElementById("sPct").textContent = pct + "%";
+});
+</script>
+
+</body>
+</html>

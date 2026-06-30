@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>จัดการผู้ใช้งาน — VaxKolok</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f0f4f0;
+  --surface:#ffffff;
+  --surface2:#f7f9f7;
+  --border:#dde5dd;
+  --text:#1a2e1a;
+  --muted:#6b7f6b;
+  --hint:#9aab9a;
+  --green:#2d6a4f;
+  --green-light:#d8f0e4;
+  --green-mid:#b7dfc9;
+  --amber:#92600a;
+  --amber-light:#fef3cd;
+  --blue:#1d4e8a;
+  --blue-light:#dbeafe;
+  --red:#8b1a1a;
+  --red-light:#fee2e2;
+  --purple:#4c1d95;
+  --purple-light:#ede9fe;
+  --radius:12px;
+  --radius-sm:8px;
+  --font:'Sarabun',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',monospace;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:15px;min-height:100vh;line-height:1.6}
+
+.shell{max-width:1080px;margin:0 auto;padding:28px 20px 60px}
+
+/* topbar */
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+.brand{display:flex;align-items:center;gap:10px}
+.brand-dot{width:10px;height:10px;border-radius:50%;background:var(--green)}
+.brand h1{font-size:17px;font-weight:600;color:var(--text)}
+.brand p{font-size:12px;color:var(--muted);margin-top:1px}
+.back-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--radius-sm);background:var(--surface);border:1px solid var(--border);color:var(--muted);font-size:13px;text-decoration:none;font-family:var(--font);cursor:pointer;transition:color .15s,border-color .15s}
+.back-btn:hover{color:var(--text);border-color:var(--green)}
+
+/* stat row */
+.stats{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 20px;flex:1;min-width:120px}
+.stat .val{font-size:26px;font-weight:600;line-height:1;margin-bottom:3px}
+.stat .lbl{font-size:12px;color:var(--muted)}
+.stat.s-all   .val{color:var(--text)}
+.stat.s-wait  .val{color:var(--amber)}
+.stat.s-admin .val{color:var(--purple)}
+
+/* card */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:20px;overflow:hidden}
+.card-head{padding:16px 20px;border-bottom:1px solid var(--border);font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px;color:var(--text)}
+.card-head .sub{font-weight:400;font-size:12px;color:var(--muted);margin-left:auto}
+
+/* filters */
+.filters{padding:14px 20px;display:flex;gap:10px;flex-wrap:wrap;border-bottom:1px solid var(--border);background:var(--surface2)}
+.filters input,.filters select{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);padding:8px 12px;font-family:var(--font);font-size:13px;outline:none;transition:border-color .15s}
+.filters input{flex:1;min-width:160px}
+.filters input:focus,.filters select:focus{border-color:var(--green)}
+.filters select option{background:var(--surface)}
+
+/* loading bar */
+.load-bar{height:2px;background:var(--border);overflow:hidden}
+.load-inner{height:100%;width:35%;background:var(--green);animation:slide 1.1s ease-in-out infinite;border-radius:2px}
+@keyframes slide{0%{transform:translateX(-100%)}100%{transform:translateX(400%)}}
+
+/* table */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+thead tr{background:var(--surface2);border-bottom:1px solid var(--border)}
+th{padding:10px 16px;text-align:left;font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);font-weight:500}
+tbody tr{border-bottom:1px solid var(--border);transition:background .1s}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:#f5fbf7}
+td{padding:13px 16px;vertical-align:middle}
+.cid{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.name{font-weight:500;font-size:14px;color:var(--text)}
+
+/* badges */
+.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;letter-spacing:.2px;white-space:nowrap}
+.badge.user    {background:var(--blue-light);color:var(--blue)}
+.badge.admin   {background:var(--purple-light);color:var(--purple)}
+.badge.approved{background:var(--green-light);color:var(--green)}
+.badge.pending {background:var(--amber-light);color:var(--amber)}
+
+/* action row */
+.arow{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.role-sel{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--font);font-size:12px;padding:5px 8px;cursor:pointer;outline:none}
+.role-sel:focus{border-color:var(--green)}
+.btn{display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border-radius:6px;font-size:12px;font-family:var(--font);font-weight:500;cursor:pointer;border:none;transition:opacity .15s}
+.btn:hover{opacity:.8}
+.btn-ok {background:var(--green-light);color:var(--green)}
+.btn-del{background:var(--red-light);color:var(--red)}
+
+/* empty */
+.empty td{text-align:center;color:var(--muted);padding:36px;font-size:13px}
+
+/* timeline */
+.timeline{padding:4px 20px 16px;display:flex;flex-direction:column;gap:0}
+.tl-row{display:flex;align-items:flex-start;gap:16px;padding:12px 0;border-bottom:1px solid var(--border)}
+.tl-row:last-child{border-bottom:none}
+.tl-line{display:flex;flex-direction:column;align-items:center;gap:0;width:14px;flex-shrink:0;padding-top:4px}
+.tl-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.tl-dot.login {background:var(--green)}
+.tl-dot.logout{background:var(--red)}
+.tl-dot.edit  {background:var(--amber)}
+.tl-body{flex:1;min-width:0}
+.tl-who{font-weight:500;font-size:13px;color:var(--text)}
+.tl-act{font-size:12px;color:var(--muted);margin-top:1px}
+.tl-time{font-family:var(--mono);font-size:11px;color:var(--hint);text-align:right;white-space:nowrap;flex-shrink:0;padding-top:2px}
+
+/* toast */
+#toast{position:fixed;bottom:24px;right:24px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px 18px;font-size:13px;color:var(--text);box-shadow:0 4px 20px rgba(0,0,0,.08);transform:translateY(12px);opacity:0;transition:all .22s ease;pointer-events:none;z-index:999;max-width:280px}
+#toast.show{transform:translateY(0);opacity:1}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-dot"></div>
+      <div>
+        <h1>VaxKolok — ตรวจการเข้าถึง</h1>
+        <p>จัดการผู้ใช้งานและประวัติการเข้าสู่ระบบ</p>
+      </div>
+    </div>
+    <a href="index.html" class="back-btn">← กลับหน้าแรก</a>
+  </div>
+
+  <div class="stats">
+    <div class="stat s-all">
+      <div class="val" id="statTotal">—</div>
+      <div class="lbl">ผู้ใช้ทั้งหมด</div>
+    </div>
+    <div class="stat s-wait">
+      <div class="val" id="statPending">—</div>
+      <div class="lbl">รออนุมัติ</div>
+    </div>
+    <div class="stat s-admin">
+      <div class="val" id="statAdmin">—</div>
+      <div class="lbl">แอดมิน</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      👥 รายชื่อผู้ใช้งาน
+    </div>
+    <div class="filters">
+      <input id="searchInput" placeholder="ค้นหาชื่อ…" oninput="renderTable()">
+      <select id="roleFilter" onchange="renderTable()">
+        <option value="">ทุก Role</option>
+        <option value="admin">admin</option>
+        <option value="user">user</option>
+      </select>
+      <select id="statusFilter" onchange="renderTable()">
+        <option value="">ทุกสถานะ</option>
+        <option value="approved">approved</option>
+        <option value="pending">pending</option>
+      </select>
+    </div>
+    <div id="loadBar" class="load-bar"><div class="load-inner"></div></div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>CID</th><th>ชื่อ</th><th>Role</th><th>สถานะ</th><th>จัดการ</th>
+          </tr>
+        </thead>
+        <tbody id="adminTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      📋 ประวัติการใช้งาน
+      <span class="sub">30 รายการล่าสุด</span>
+    </div>
+    <div class="timeline" id="activityTimeline">
+      <div style="text-align:center;color:var(--muted);padding:24px;font-size:13px">กำลังโหลด…</div>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+const firebaseConfig = {
+  apiKey: "HnOSpjSHma268VX3glsVJ9idzj9Uc1jjcqkJ7P11",
+  authDomain: "vaccine-dashboard-bc687.firebaseapp.com",
+  databaseURL: "https://vaccine-dashboard-bc687-default-rtdb.firebaseio.com/",
+  projectId: "vaccine-dashboard-bc687",
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let usersCache = {};
+let loaded = false;
+let toastTimer;
+
+function toast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 2800);
+}
+
+function renderTable() {
+  const kw     = document.getElementById("searchInput").value.toLowerCase();
+  const roleF  = document.getElementById("roleFilter").value;
+  const statF  = document.getElementById("statusFilter").value;
+  let total=0, pending=0, adminCnt=0, rows="";
+
+  Object.entries(usersCache).forEach(([id, u]) => {
+    total++;
+    if (u.status === "pending") pending++;
+    if (u.role === "admin") adminCnt++;
+    if (kw    && !(u.name||"").toLowerCase().includes(kw)) return;
+    if (roleF && u.role !== roleF)   return;
+    if (statF && u.status !== statF) return;
+    rows += `<tr>
+      <td class="cid">${u.cid||"—"}</td>
+      <td class="name">${u.name||"—"}</td>
+      <td><span class="badge ${u.role||''}">${u.role||"—"}</span></td>
+      <td><span class="badge ${u.status||''}">${u.status||"—"}</span></td>
+      <td><div class="arow">
+        <select class="role-sel" onchange="changeRole('${id}',this.value)">
+          <option value="user"  ${u.role==="user"?"selected":""}>user</option>
+          <option value="admin" ${u.role==="admin"?"selected":""}>admin</option>
+        </select>
+        ${u.status==="pending"
+          ? `<button class="btn btn-ok" onclick="approveUser('${id}')">✅ อนุมัติ</button>`
+          : `<span class="badge approved" style="font-size:10px">✓ แล้ว</span>`}
+        <button class="btn btn-del" onclick="deleteUser('${id}')">🗑</button>
+      </div></td>
+    </tr>`;
+  });
+
+  document.getElementById("adminTable").innerHTML = rows ||
+    `<tr class="empty"><td colspan="5">ไม่พบข้อมูลที่ตรงกัน</td></tr>`;
+  document.getElementById("statTotal").textContent   = total;
+  document.getElementById("statPending").textContent = pending;
+  document.getElementById("statAdmin").textContent   = adminCnt;
+}
+
+function loadAdmin() {
+  db.ref("users").on("value", snap => {
+    usersCache = snap.val() || {};
+    if (!loaded) { document.getElementById("loadBar").style.display="none"; loaded=true; }
+    renderTable();
+  });
+}
+
+function approveUser(id) {
+  if (!confirm("อนุมัติผู้ใช้นี้?")) return;
+  db.ref("users/"+id).update({status:"approved"})
+    .then(()=>{toast("✅ อนุมัติแล้ว");saveLog("อนุมัติผู้ใช้",id);})
+    .catch(e=>toast("❌ "+e.message));
+}
+
+function changeRole(id, role) {
+  const before = usersCache[id]?.role||"";
+  db.ref("users/"+id).update({role})
+    .then(()=>{toast("🔄 เปลี่ยน Role → "+role);saveLog("เปลี่ยน Role",id,before,role);})
+    .catch(e=>toast("❌ "+e.message));
+}
+
+function deleteUser(id) {
+  const name = usersCache[id]?.name||id;
+  if (!confirm(`ลบผู้ใช้ "${name}"?`)) return;
+  db.ref("users/"+id).remove()
+    .then(()=>{toast("🗑 ลบ: "+name);saveLog("ลบผู้ใช้",id);})
+    .catch(e=>toast("❌ "+e.message));
+}
+
+function saveLog(action, detail="", before="", after="") {
+  const n = new Date();
+  db.ref("loginLogs").push({
+    user: localStorage.getItem("name")||"Unknown",
+    role: localStorage.getItem("role")||"user",
+    action, detail, before, after,
+    page: location.pathname,
+    date: n.toLocaleDateString("th-TH"),
+    time: n.toLocaleTimeString("th-TH"),
+    timestamp: Date.now(),
+  });
+}
+
+function loadLogs() {
+  db.ref("loginLogs").limitToLast(30).on("value", snap => {
+    const items = Object.values(snap.val()||{}).reverse();
+    if (!items.length) {
+      document.getElementById("activityTimeline").innerHTML =
+        `<div style="text-align:center;color:var(--muted);padding:24px;font-size:13px">ยังไม่มีประวัติ</div>`;
+      return;
+    }
+    document.getElementById("activityTimeline").innerHTML = items.map(l => {
+      let dot = "edit";
+      if (l.action==="เข้าสู่ระบบ") dot="login";
+      if (l.action==="ออกจากระบบ") dot="logout";
+      const extra = l.after ? ` → ${l.after}` : (l.detail&&l.detail!==l.user ? ` (${l.detail})` : "");
+      return `<div class="tl-row">
+        <div class="tl-line"><div class="tl-dot ${dot}"></div></div>
+        <div class="tl-body">
+          <div class="tl-who">${l.user||"—"}</div>
+          <div class="tl-act">${l.action||"—"}${extra}</div>
+        </div>
+        <div class="tl-time">${l.date||""}<br>${l.time||""}</div>
+      </div>`;
+    }).join("");
+  });
+}
+
+loadAdmin();
+loadLogs();
+</script>
+</body>
+</html>

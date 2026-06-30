@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>เข้าสู่ระบบ — VaxKolok DHB</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f0f4fa;
+  --surface:#ffffff;
+  --surface2:#f5f7fb;
+  --border:#dde3ef;
+  --text:#0f1e3d;
+  --muted:#5a6a8a;
+  --hint:#a0aec0;
+  --blue:#1a4fa0;
+  --blue-hover:#163e80;
+  --blue-light:#dbeafe;
+  --orange:#e07b10;
+  --orange-light:#fff3e0;
+  --red:#8b1a1a;
+  --red-light:#fee2e2;
+  --radius:16px;
+  --radius-sm:10px;
+  --font:'Sarabun',system-ui,sans-serif;
+}
+body{
+  background:var(--bg);
+  font-family:var(--font);
+  font-size:15px;
+  color:var(--text);
+  min-height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:24px 16px;
+}
+
+.box{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:36px 32px 32px;
+  width:100%;
+  max-width:420px;
+  box-shadow:0 2px 16px rgba(26,79,160,.07);
+}
+
+/* logo */
+.logo-wrap{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin-bottom:24px;
+}
+.logo-wrap img{
+  width:68px;
+  height:68px;
+  object-fit:contain;
+  flex-shrink:0;
+}
+.logo-text h2{
+  font-size:17px;
+  font-weight:700;
+  line-height:1.2;
+  color:var(--text);
+}
+.logo-text h2 span{color:var(--orange)}
+.logo-text p{
+  font-size:12px;
+  color:var(--muted);
+  margin-top:2px;
+}
+
+.divider{
+  height:1px;
+  background:var(--border);
+  margin-bottom:24px;
+}
+
+/* field */
+.field{margin-bottom:16px}
+.field label{
+  display:block;
+  font-size:13px;
+  font-weight:500;
+  color:var(--muted);
+  margin-bottom:6px;
+}
+.field input{
+  width:100%;
+  height:50px;
+  background:var(--surface2);
+  border:1.5px solid var(--border);
+  border-radius:var(--radius-sm);
+  color:var(--text);
+  font-family:var(--font);
+  font-size:15px;
+  padding:0 14px;
+  outline:none;
+  transition:border-color .15s,background .15s;
+  letter-spacing:.5px;
+}
+.field input:focus{border-color:var(--blue);background:#fff}
+.field input::placeholder{color:var(--hint);letter-spacing:0}
+.field .err{font-size:12px;color:var(--red);margin-top:5px;display:none}
+.field.has-err input{border-color:var(--red)}
+.field.has-err .err{display:block}
+
+/* button */
+.btn-login{
+  width:100%;height:50px;
+  background:var(--blue);
+  color:#fff;
+  border:none;
+  border-radius:var(--radius-sm);
+  font-family:var(--font);
+  font-size:15px;
+  font-weight:600;
+  cursor:pointer;
+  transition:background .15s,opacity .15s;
+  margin-top:4px;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  letter-spacing:.3px;
+}
+.btn-login:hover{background:var(--blue-hover)}
+.btn-login:active{opacity:.88}
+.btn-login:disabled{opacity:.6;cursor:not-allowed}
+
+/* spinner */
+.spinner{
+  width:18px;height:18px;
+  border:2px solid rgba(255,255,255,.35);
+  border-top-color:#fff;
+  border-radius:50%;
+  animation:spin .7s linear infinite;
+  display:none;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.btn-login.loading .spinner{display:block}
+.btn-login.loading .btn-label{display:none}
+
+/* register */
+.reg-row{
+  text-align:center;
+  margin-top:20px;
+  font-size:13px;
+  color:var(--muted);
+  border-top:1px solid var(--border);
+  padding-top:18px;
+}
+.reg-row a{
+  color:var(--orange);
+  font-weight:600;
+  text-decoration:none;
+  margin-left:4px;
+}
+.reg-row a:hover{text-decoration:underline}
+
+/* toast */
+#toast{
+  position:fixed;bottom:24px;left:50%;
+  transform:translateX(-50%) translateY(12px);
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:10px 20px;
+  font-size:13px;color:var(--text);
+  box-shadow:0 4px 20px rgba(0,0,0,.08);
+  opacity:0;transition:all .22s ease;
+  pointer-events:none;z-index:999;white-space:nowrap;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.err{border-color:#f5c1c1;background:var(--red-light);color:var(--red)}
+
+ .btn-login:hover { opacity: 0.88; }
+    .btn-dashboard {
+      background: #fff;
+      color: #3b82f6;
+      border: 1.5px solid #3b82f6;
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      width: 100%;
+      margin-top: 10px;
+      transition: background .2s, color .2s;
+      cursor: pointer;
+    }
+    .btn-dashboard:hover {
+      background: #eff6ff;
+    }
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 18px 0 14px;
+      color: #94a3b8;
+      font-size: 13px;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: #e2e8f0;
+    }
+    .register-link {
+      text-align: center;
+      margin-top: 18px;
+      font-size: 13px;
+      color: #64748b;
+    }
+    .register-link a { color: #3b82f6; text-decoration: none; font-weight: 600; }
+    .register-link a:hover { text-decoration: underline; }
+    #msg { min-height: 20px; text-align: center; font-size: 13px; margin-top: 8px; }
+</style>
+</head>
+
+<body>
+<div class="box">
+
+  <div class="logo-wrap">
+    <img src="logo.png" alt="VaxKolok DHB" onerror="this.style.display='none'">
+    <div class="logo-text">
+      <h2>Vax<span>Kolok</span>-DHB</h2>
+      <p>ระบบติดตามวัคซีนเด็ก</p>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="field" id="fieldCid">
+    <label for="cid">เลขบัตรประชาชน 13 หลัก</label>
+    <input
+      type="text"
+      id="cid"
+      placeholder="0 0000 00000 00 0"
+      maxlength="13"
+      inputmode="numeric"
+      autocomplete="off"
+      oninput="this.value=this.value.replace(/[^0-9]/g,'');clearErr()"
+    >
+    <div class="err" id="cidErr">กรุณากรอกเลขบัตรประชาชน 13 หลักให้ครบ</div>
+  </div>
+
+  <button class="btn-login" id="loginBtn" onclick="login()">
+    <div class="spinner"></div>
+    <span class="btn-label">เข้าสู่ระบบ</span>
+  </button>
+
+  <div class="reg-row">
+    ยังไม่มีบัญชี?
+    <a href="register.html">สมัครสมาชิก</a>
+  </div>
+
+</div>
+
+<!-- id="msg" ซ่อนไว้ให้ app.js ใช้ได้ปกติ -->
+<p id="msg" style="display:none"></p>
+
+<div id="toast"></div>
+
+<script src="app.js"></script>
+<script>
+  function goDashboard() {
+    window.location.href = 'dashboard.html';
+  }
+</script>
+<script>
+function clearErr() {
+  document.getElementById("fieldCid").classList.remove("has-err");
+}
+
+let toastTimer;
+function showToast(msg, isErr=false) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.className = "show" + (isErr ? " err" : "");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.className = "", 2800);
+}
+
+function setLoading(on) {
+  const btn = document.getElementById("loginBtn");
+  btn.disabled = on;
+  btn.classList.toggle("loading", on);
+}
+
+// ดัก #msg ด้วย MutationObserver — ไม่ต้อง redefine innerText
+const msgEl = document.getElementById("msg");
+const msgObserver = new MutationObserver(() => {
+  const val = msgEl.innerText.trim();
+  if (!val) return;
+  setLoading(false);
+  const isErr = !val.includes("✅");
+  if (val.includes("กรอก")) {
+    document.getElementById("fieldCid").classList.add("has-err");
+  }
+  showToast(val, isErr);
+  msgEl.innerText = "";
+});
+msgObserver.observe(msgEl, { childList: true, subtree: true, characterData: true });
+
+document.getElementById("cid").addEventListener("keydown", e => {
+  if (e.key === "Enter") login();
+});
+
+// Wrapper: validate + loading state ก่อนส่งให้ app.js
+const _origLogin = window.login;
+window.login = function() {
+  clearErr();
+  const cid = document.getElementById("cid").value.replace(/\D/g, "");
+  if (cid.length !== 13) {
+    document.getElementById("fieldCid").classList.add("has-err");
+    return;
+  }
+  setLoading(true);
+  if (typeof _origLogin === "function") _origLogin();
+};
+</script>
+</body>
+</html>
+

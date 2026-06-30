@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ติดตามอาการหลังฉีดวัคซีน</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<style>
+body { background:#f4f6fb; padding:20px; font-family:'Sarabun',sans-serif; }
+
+.stat-card { border:none; border-radius:16px; box-shadow:0 2px 10px rgba(0,0,0,.05); padding:16px 20px; }
+.stat-label { font-size:13px; color:#6c757d; margin-bottom:4px; }
+.stat-val   { font-size:32px; font-weight:700; }
+
+/* แท็บตำบล */
+.tambon-tabs { display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap; }
+.tambon-tab {
+  padding:8px 18px; border-radius:30px; font-size:14px; font-weight:600; cursor:pointer;
+  border:2px solid #e2e8f0; background:#fff; color:#64748b; transition:all .2s;
+  display:flex; align-items:center; gap:6px;
+}
+.tambon-tab:hover { border-color:#93c5fd; color:#1e40af; }
+.tambon-tab.active { border-color:#3b82f6; background:#eff6ff; color:#1e40af; }
+.tambon-tab .tab-count {
+  background:#e2e8f0; color:#475569; font-size:11px; font-weight:700;
+  padding:1px 7px; border-radius:20px; min-width:20px; text-align:center;
+}
+.tambon-tab.active .tab-count { background:#bfdbfe; color:#1e40af; }
+
+/* badge ตำบล บนการ์ด */
+.tambon-badge {
+  display:inline-block; font-size:11px; font-weight:600; padding:2px 10px;
+  border-radius:20px; background:#eff6ff; color:#1e40af; margin-left:6px;
+}
+
+.case-card { border-radius:16px; box-shadow:0 2px 8px rgba(0,0,0,.05); padding:16px; margin-bottom:12px; background:#fff; border:1.5px solid #e9ecef; transition:box-shadow .2s; }
+.case-card:hover   { box-shadow:0 4px 18px rgba(0,0,0,.09); }
+.case-card.urgent  { border-color:#ef4444; }
+.case-card.warning { border-color:#f59e0b; }
+.case-card.closed  { opacity:.65; }
+.case-card.no-response { border-color:#ec4899; background:#fff7fb; }
+
+.level-badge { display:inline-block; font-size:13px; font-weight:600; padding:4px 12px; border-radius:20px; }
+.level-green { background:#dcfce7; color:#166534; }
+.level-amber { background:#fef9c3; color:#854d0e; }
+.level-red   { background:#fee2e2; color:#991b1b; }
+.level-blue  { background:#dbeafe; color:#1e40af; }
+.level-gray  { background:#f1f5f9; color:#475569; }
+
+.prog-wrap  { margin:8px 0 4px; }
+.prog-label { display:flex; justify-content:space-between; font-size:12px; color:#6c757d; margin-bottom:4px; }
+.prog-bg    { height:7px; background:#f1f5f9; border-radius:4px; overflow:hidden; }
+.prog-fill  { height:100%; border-radius:4px; transition:width .4s; }
+
+.info-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 16px; font-size:13px; }
+.info-key  { color:#6c757d; font-size:12px; }
+.info-val  { color:#212529; }
+
+.fu-chip {
+  display:inline-flex; align-items:center; gap:5px;
+  font-size:12px; font-weight:600; padding:3px 10px; border-radius:20px;
+}
+.fu-waiting    { background:#fef9c3; color:#854d0e; }
+.fu-overdue    { background:#fee2e2; color:#991b1b; }
+.fu-pending    { background:#e0f2fe; color:#0369a1; }
+.fu-done       { background:#f1f5f9; color:#475569; }
+.fu-remind     { background:#fce7f3; color:#9d174d; }
+.fu-noresponse { background:#fdf2f8; color:#86198f; font-weight:700; }
+
+/* ปุ่มส่งซ้ำ — ไม่จำกัดจำนวน */
+.btn-resend { background:#fef9c3; color:#854d0e; border:1px solid #fde68a; }
+.btn-resend:hover { background:#fde68a; }
+.btn-resend:disabled { opacity:.55; cursor:not-allowed; }
+
+#toast-wrap {
+  position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+  z-index:9999; display:flex; flex-direction:column; gap:8px; pointer-events:none;
+}
+.toast-msg {
+  background:#1e293b; color:#fff; font-size:14px; font-weight:600;
+  padding:10px 20px; border-radius:12px; box-shadow:0 4px 16px rgba(0,0,0,.2);
+  animation:toastIn .25s ease; pointer-events:none;
+}
+.toast-msg.success { background:#166534; }
+.toast-msg.error   { background:#991b1b; }
+@keyframes toastIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+
+.toolbar { display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
+.toolbar input, .toolbar select { border-radius:10px; border:1px solid #dee2e6; padding:7px 12px; font-size:14px; }
+.toolbar input { flex:1; min-width:180px; }
+
+.topbar   { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap; gap:10px; }
+.topbar h1{ font-size:20px; font-weight:700; margin:0; color:#1e293b; }
+
+.btn-accept      { background:#dcfce7; color:#166534; border:1px solid #86efac; }
+.btn-accept:hover{ background:#bbf7d0; }
+.btn-close-case  { background:#fee2e2; color:#991b1b; border:1px solid #fca5a5; }
+.btn-close-case:hover{ background:#fecaca; }
+.btn-reopen      { background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; }
+.btn-reopen:hover{ background:#e2e8f0; }
+
+.empty-state { text-align:center; padding:60px 20px; color:#94a3b8; font-size:15px; }
+
+.no-response-banner {
+  background:#fdf4ff; border:1px solid #e879f9;
+  border-radius:10px; padding:8px 12px; margin-bottom:10px;
+  font-size:12px; color:#86198f; font-weight:600;
+  display:flex; align-items:center; gap:6px;
+}
+
+/* section หัวตำบล (โหมดรวม) */
+.tambon-section-header {
+  display:flex; align-items:center; gap:10px;
+  padding:10px 16px; margin:20px 0 12px;
+  background:#fff; border-radius:12px; border-left:4px solid #3b82f6;
+  box-shadow:0 1px 6px rgba(0,0,0,.05);
+  font-size:15px; font-weight:700; color:#1e293b;
+}
+</style>
+</head>
+<body>
+<div class="container-fluid" style="max-width:960px">
+
+  <!-- หัวหน้าทางการ -->
+  <div style="background:#fff;border-radius:16px;padding:16px 20px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,.06);border-left:5px solid #1d4ed8;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:2px">
+      <div style="background:#1d4ed8;border-radius:10px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <i class="ti ti-shield-check" style="font-size:22px;color:#fff"></i>
+      </div>
+      <div>
+        <div style="font-size:11px;color:#6b7280;font-weight:500;letter-spacing:.05em;text-transform:uppercase">ระบบติดตามผลวัคซีน · สาธารณสุขอำเภอสุไหงโก-ลก</div>
+        <div style="font-size:18px;font-weight:700;color:#1e293b">รายงานการติดตามอาการภายหลังได้รับวัคซีน</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="topbar">
+    <h1 style="font-size:15px;color:#475569;font-weight:600">
+      <i class="ti ti-list-details" style="vertical-align:-2px;margin-right:6px;color:#3b82f6"></i>
+      รายการเคสทั้งหมด
+    </h1>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span id="lastUpdate" style="font-size:12px;color:#94a3b8"></span>
+      <button class="btn btn-outline-secondary btn-sm" onclick="manualRefresh()">
+        <i class="ti ti-refresh"></i> รีเฟรช
+      </button>
+      <a href="index.html" class="btn btn-outline-secondary btn-sm">
+        <i class="ti ti-arrow-left"></i> กลับหน้าแรก
+      </a>
+    </div>
+  </div>
+
+  <!-- Stat Cards (ตามตำบลที่เลือก) -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md">
+      <div class="stat-card bg-white">
+        <div class="stat-label"><i class="ti ti-users"></i> ทั้งหมด</div>
+        <div class="stat-val text-dark" id="sTotal">—</div>
+      </div>
+    </div>
+    <div class="col-6 col-md">
+      <div class="stat-card bg-white">
+        <div class="stat-label" style="color:#166534"><i class="ti ti-circle-check"></i> ปกติ</div>
+        <div class="stat-val" style="color:#166534" id="sNormal">—</div>
+      </div>
+    </div>
+    <div class="col-6 col-md">
+      <div class="stat-card bg-white">
+        <div class="stat-label" style="color:#854d0e"><i class="ti ti-alert-triangle"></i> เฝ้าระวัง</div>
+        <div class="stat-val" style="color:#854d0e" id="sWarn">—</div>
+      </div>
+    </div>
+    <div class="col-6 col-md">
+      <div class="stat-card bg-white">
+        <div class="stat-label" style="color:#991b1b"><i class="ti ti-urgent"></i> ด่วน</div>
+        <div class="stat-val" style="color:#991b1b" id="sCrit">—</div>
+      </div>
+    </div>
+    <div class="col-6 col-md">
+      <div class="stat-card bg-white">
+        <div class="stat-label" style="color:#1e40af"><i class="ti ti-circle-x"></i> ปิดเคสแล้ว</div>
+        <div class="stat-val" style="color:#1e40af" id="sClosed">—</div>
+      </div>
+    </div>
+    <div class="col-6 col-md">
+      <div class="stat-card bg-white">
+        <div class="stat-label" style="color:#86198f"><i class="ti ti-bell-exclamation"></i> ไม่ตอบกลับ</div>
+        <div class="stat-val" style="color:#86198f" id="sNoResp">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- แท็บตำบล -->
+  <div style="font-size:12px;color:#6b7280;font-weight:600;margin-bottom:8px;letter-spacing:.04em;text-transform:uppercase">
+    <i class="ti ti-map-2" style="vertical-align:-2px"></i> เลือกพื้นที่
+  </div>
+  <div class="tambon-tabs" id="tambonTabs">
+    <div class="tambon-tab active" data-tambon="all" onclick="selectTambon('all',this)">
+      <i class="ti ti-layout-grid"></i> ทุกตำบล
+      <span class="tab-count" id="cnt-all">0</span>
+    </div>
+    <div class="tambon-tab" data-tambon="kolok" onclick="selectTambon('kolok',this)">
+      <i class="ti ti-building-community"></i> สุไหงโก-ลก
+      <span class="tab-count" id="cnt-kolok">0</span>
+    </div>
+    <div class="tambon-tab" data-tambon="munoh" onclick="selectTambon('munoh',this)">
+      <i class="ti ti-map-pin"></i> มูโนะ
+      <span class="tab-count" id="cnt-munoh">0</span>
+    </div>
+    <div class="tambon-tab" data-tambon="puyoh" onclick="selectTambon('puyoh',this)">
+      <i class="ti ti-map-pin"></i> ปูโยะ
+      <span class="tab-count" id="cnt-puyoh">0</span>
+    </div>
+    <div class="tambon-tab" data-tambon="pasemas" onclick="selectTambon('pasemas',this)">
+      <i class="ti ti-map-pin"></i> ปาเสมัส
+      <span class="tab-count" id="cnt-pasemas">0</span>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <input type="text" id="search" placeholder="🔍 ค้นหา HN หรือชื่อเด็ก..." oninput="render()">
+    <select id="filterLevel" onchange="render()">
+      <option value="">— ทุกระดับ —</option>
+      <option value="ปกติ">ปกติ</option>
+      <option value="เฝ้าระวัง">เฝ้าระวัง</option>
+      <option value="ด่วน">ด่วน / รุนแรง</option>
+      <option value="ปิดเคส">ปิดเคสแล้ว</option>
+      <option value="ไม่ตอบกลับ">ไม่ตอบกลับ</option>
+    </select>
+    <select id="sortBy" onchange="render()">
+      <option value="priority">เรียงตามความเร่งด่วน</option>
+      <option value="time">เรียงตามเวลาล่าสุด</option>
+      <option value="nextFollowUp">เรียงตาม follow-up ถัดไป</option>
+    </select>
+  </div>
+
+  <div id="cardList">
+    <div class="empty-state">
+      <i class="ti ti-loader-2" style="font-size:36px;display:block;margin-bottom:8px"></i>
+      กำลังโหลดข้อมูล...
+    </div>
+  </div>
+
+</div>
+
+<div id="toast-wrap"></div>
+
+<!-- Staff Modal -->
+<div class="modal fade" id="staffModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:16px">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title" id="staffModalTitle">รับเคส</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label" style="font-size:14px">ชื่อเจ้าหน้าที่</label>
+        <input type="text" class="form-control" id="staffName" placeholder="กรอกชื่อเจ้าหน้าที่...">
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+        <button type="button" class="btn btn-primary" id="staffConfirm">ยืนยัน</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ── Firebase ──────────────────────────────────
+const firebaseConfig = {
+  apiKey:      "HnOSpjSHma268VX3glsVJ9idzj9Uc1jjcqkJ7P11",
+  authDomain:  "vaccine-dashboard-bc687.firebaseapp.com",
+  databaseURL: "https://vaccine-dashboard-bc687-default-rtdb.firebaseio.com/",
+  projectId:   "vaccine-dashboard-bc687"
+};
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// ── State ─────────────────────────────────────
+let allData = {};
+let pendingKey = null, pendingAction = null;
+let activeTambon = "all";   // ตำบลที่เลือกอยู่
+const staffModal = new bootstrap.Modal(document.getElementById("staffModal"));
+
+// ── Config ────────────────────────────────────
+const FOLLOW_DELAYS = {
+  1: 30 * 60 * 1000,
+  2:  6 * 60 * 60 * 1000,
+  3: 24 * 60 * 60 * 1000,
+  4:  3 * 24 * 60 * 60 * 1000,
+  5:  7 * 24 * 60 * 60 * 1000,
+};
+const REMINDER_DELAY = 30 * 60 * 1000;
+const MAX_NORMAL     = 5;
+const MAX_STEP       = 5;
+
+const TAMBON_NAME = {
+  all:     "ทุกตำบล",
+  kolok:   "สุไหงโก-ลก",
+  munoh:   "มูโนะ",
+  puyoh:   "ปูโยะ",
+  pasemas: "ปาเสมัส"
+};
+
+// ── แท็บตำบล ──────────────────────────────────
+function selectTambon(tambon, el) {
+  activeTambon = tambon;
+  document.querySelectorAll(".tambon-tab").forEach(t => t.classList.remove("active"));
+  el.classList.add("active");
+  render();
+}
+
+function updateTabCounts() {
+  const counts = { all:0, kolok:0, munoh:0, puyoh:0, pasemas:0 };
+  Object.values(allData).forEach(s => {
+    counts.all++;
+    if (s.tambon && counts[s.tambon] !== undefined) counts[s.tambon]++;
+  });
+  Object.entries(counts).forEach(([t, n]) => {
+    const el = document.getElementById("cnt-" + t);
+    if (el) el.textContent = n;
+  });
+}
+
+// ── Helpers ───────────────────────────────────
+function thaiDateTime(ms) {
+  if (!ms || ms <= 0) return null;
+  return new Date(ms).toLocaleString("th-TH", { timeZone:"Asia/Bangkok", hour12:false });
+}
+
+function formatDuration(ms) {
+  if (ms < 0) ms = 0;
+  const m = Math.floor(ms / 60000);
+  const h = Math.floor(m / 60);
+  const d = Math.floor(h / 24);
+  if (d > 0) return `${d} วัน ${h % 24} ชม.`;
+  if (h > 0) return `${h} ชม. ${m % 60} นาที`;
+  return `${m} นาที`;
+}
+
+function followUpChip(s) {
+  const now = Date.now();
+  if (s.status === "ปิดเคส") {
+    return `<span class="fu-chip fu-done"><i class="ti ti-circle-check"></i> ปิดเคสแล้ว</span>`;
+  }
+  if (s.noResponseAlert) {
+    const sinceMs = s.lastRemindAt ? now - s.lastRemindAt : (s.lastAskedAt ? now - s.lastAskedAt : 0);
+    return `<span class="fu-chip fu-noresponse">
+      <i class="ti ti-bell-exclamation"></i>
+      ไม่ตอบกลับ ${s.remindCount || 0} ครั้ง — รอเจ้าหน้าที่ติดตาม
+      <small style="opacity:.8">(นาน ${formatDuration(sinceMs)})</small>
+    </span>`;
+  }
+  if (s.nextFollowUp && s.nextFollowUp > 0) {
+    const diff = s.nextFollowUp - now;
+    if (diff <= 0) return `<span class="fu-chip fu-overdue">
+      <i class="ti ti-clock-exclamation"></i> เกินกำหนด ${formatDuration(Math.abs(diff))}</span>`;
+    return `<span class="fu-chip fu-pending">
+      <i class="ti ti-clock"></i> ${thaiDateTime(s.nextFollowUp)}
+      <small style="opacity:.75">(อีก ${formatDuration(diff)})</small></span>`;
+  }
+  if (s.lastAskedAt) {
+    const remindCount  = s.remindCount  || 0;
+    const lastRemindAt = s.lastRemindAt || s.lastAskedAt;
+    const diffToRemind = (lastRemindAt + REMINDER_DELAY) - now;
+    if (remindCount > 0) {
+      if (diffToRemind > 0) return `<span class="fu-chip fu-remind">
+        <i class="ti ti-bell"></i> เตือนซ้ำแล้ว ${remindCount} ครั้ง
+        <small style="opacity:.75">· เตือนต่อไปอีก ${formatDuration(diffToRemind)}</small></span>`;
+      return `<span class="fu-chip fu-overdue">
+        <i class="ti ti-bell-exclamation"></i>
+        เตือนซ้ำ ${remindCount} ครั้ง — ยังไม่ตอบ ${formatDuration(now - lastRemindAt)}</span>`;
+    }
+    const step  = s.sentFollowStep || s.followStep || 1;
+    const delay = FOLLOW_DELAYS[step] || FOLLOW_DELAYS[1];
+    const diff  = (s.lastAskedAt + delay) - now;
+    if (diff > 0) return `<span class="fu-chip fu-waiting">
+      <i class="ti ti-message-dots"></i> รอผู้ปกครองตอบกลับ
+      <small style="opacity:.75">· ส่งแล้ว ${formatDuration(now - s.lastAskedAt)} ที่แล้ว</small></span>`;
+    return `<span class="fu-chip fu-overdue">
+      <i class="ti ti-message-exclamation"></i> ยังไม่ได้ตอบกลับ ${formatDuration(now - s.lastAskedAt)}</span>`;
+  }
+  const step  = s.followStep || 1;
+  const regAt = s.registeredAt || s.time || 0;
+  if (regAt) {
+    const estimated = regAt + (FOLLOW_DELAYS[step] || FOLLOW_DELAYS[1]);
+    const diff      = estimated - now;
+    if (diff > 0) return `<span class="fu-chip fu-pending">
+      <i class="ti ti-clock"></i> ${thaiDateTime(estimated)}
+      <small style="opacity:.75">(อีก ${formatDuration(diff)})</small></span>`;
+  }
+  return `<span class="fu-chip fu-done"><i class="ti ti-minus"></i> ไม่มีข้อมูล</span>`;
+}
+
+function vaccineText(vac) {
+  if (!vac) return "ไม่มีข้อมูล";
+  const vals = Object.values(vac);
+  if (!vals.length) return "ไม่มีข้อมูล";
+  const latest = [...vals].sort().pop();
+  return Object.entries(vac).filter(([, v]) => v === latest).map(([k, v]) => `${k} (${v})`).join(", ");
+}
+
+function levelBadge(level) {
+  if (!level) return '<span class="level-badge level-gray">ไม่ระบุ</span>';
+  if (level.includes("🔴")) return `<span class="level-badge level-red">${level}</span>`;
+  if (level.includes("🟠")) return `<span class="level-badge level-amber">${level}</span>`;
+  if (level.includes("🟢")) return `<span class="level-badge level-green">${level}</span>`;
+  return `<span class="level-badge level-gray">${level}</span>`;
+}
+
+function statusBadge(status) {
+  if (!status) return "";
+  if (status === "ปิดเคส")      return '<span class="level-badge level-blue">ปิดเคสแล้ว</span>';
+  if (status === "กำลังติดตาม") return '<span class="level-badge level-blue">กำลังติดตาม</span>';
+  if (status === "ด่วน")        return '<span class="level-badge level-red">ด่วน</span>';
+  if (status === "เฝ้าติดตาม")  return '<span class="level-badge level-amber">เฝ้าติดตาม</span>';
+  if (status === "รอติดตาม")    return '<span class="level-badge level-gray">รอติดตาม</span>';
+  return `<span class="level-badge level-gray">${status}</span>`;
+}
+
+function progressColor(n) {
+  if (n >= 4) return "#22c55e";
+  if (n >= 2) return "#f59e0b";
+  return "#ef4444";
+}
+
+function cardClass(s) {
+  if (s.status === "ปิดเคส")                                       return "case-card closed";
+  if (s.noResponseAlert)                                            return "case-card no-response";
+  if ((s.level||"").includes("🔴") || s.status === "ด่วน")         return "case-card urgent";
+  if ((s.level||"").includes("🟠"))                                 return "case-card warning";
+  return "case-card";
+}
+
+// ── สร้างการ์ดเดี่ยว ──────────────────────────
+function buildCard(key, s, showTambonBadge) {
+  const nc          = s.normalCount || 0;
+  const step        = s.followStep  || 1;
+  const isClosed    = s.status === "ปิดเคส";
+  const hasAssigned = !!s.assignedTo;
+  const updatedDt   = thaiDateTime(s.updatedAt || s.time || 0) || "-";
+
+  // ปุ่มส่งซ้ำ — ไม่จำกัดจำนวน ไม่ต้องตรวจ isOverdue
+  const resendBtn = (!isClosed && s.userId)
+    ? `<button class="btn btn-resend btn-sm" id="resend-${key}"
+           onclick="resendFollowUp('${key}','${s.userId||""}')">
+         <i class="ti ti-send"></i> ส่งอีกครั้ง
+       </button>`
+    : "";
+
+  let btnHtml = "";
+  if (isClosed) {
+    btnHtml = `<button class="btn btn-reopen btn-sm" onclick="openAction('${key}','reopen')">
+      <i class="ti ti-rotate"></i> เปิดเคสใหม่</button>`;
+  } else if (hasAssigned) {
+    btnHtml = `<button class="btn btn-close-case btn-sm" onclick="openAction('${key}','close')">
+      <i class="ti ti-circle-check"></i> จบเคส / ปิด</button>`;
+  } else {
+    btnHtml = `<button class="btn btn-accept btn-sm" onclick="openAction('${key}','accept')">
+      <i class="ti ti-hand-stop"></i> รับเคส</button>`;
+  }
+
+  const noRespBanner = s.noResponseAlert
+    ? `<div class="no-response-banner">
+         <i class="ti ti-alert-circle" style="font-size:15px"></i>
+         <span>แจ้งเตือน: ผู้ปกครองไม่ตอบกลับหลังส่งแบบสอบถาม ${s.remindCount || 0} ครั้ง — กรุณาติดต่อโดยตรง</span>
+       </div>`
+    : "";
+
+  const tambonBadge = showTambonBadge && s.tambon
+    ? `<span class="tambon-badge"><i class="ti ti-map-pin" style="font-size:10px"></i> ${TAMBON_NAME[s.tambon]||s.tambon}</span>`
+    : "";
+
+  return `
+  <div class="${cardClass(s)}">
+    ${noRespBanner}
+    <div class="d-flex justify-content-between align-items-start mb-2">
+      <div>
+        <div style="font-size:16px;font-weight:700;color:#1e293b">
+          <i class="ti ti-user-circle" style="font-size:16px;vertical-align:-2px;margin-right:4px"></i>
+          ${s.name||"-"}${tambonBadge}
+        </div>
+        <div style="font-size:13px;color:#64748b;margin-top:2px">
+          <i class="ti ti-id"></i> HN: ${s.hn||"-"}
+          &nbsp;|&nbsp;
+          <i class="ti ti-phone"></i> ${s.phone||"-"}
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+        ${levelBadge(s.level)}
+        ${statusBadge(s.status)}
+      </div>
+    </div>
+
+    <div class="prog-wrap">
+      <div class="prog-label">
+        <span>ปกติติดต่อกัน</span>
+        <span>${nc} / ${MAX_NORMAL} ครั้ง</span>
+      </div>
+      <div class="prog-bg">
+        <div class="prog-fill"
+             style="width:${Math.min(nc/MAX_NORMAL*100,100)}%;background:${progressColor(nc)}">
+        </div>
+      </div>
+    </div>
+
+    <hr style="margin:10px 0;border-color:#f1f5f9">
+
+    <div class="info-grid mb-2">
+      <div>
+        <div class="info-key"><i class="ti ti-vaccine"></i> วัคซีนล่าสุด</div>
+        <div class="info-val">${vaccineText(s.vaccines)}</div>
+      </div>
+      <div>
+        <div class="info-key"><i class="ti ti-stethoscope"></i> อาการล่าสุด</div>
+        <div class="info-val">${s.symptom||"-"}</div>
+      </div>
+      <div>
+        <div class="info-key"><i class="ti ti-list-numbers"></i> รอบติดตาม</div>
+        <div class="info-val">รอบที่ ${step} / ${MAX_STEP}</div>
+      </div>
+      <div>
+        <div class="info-key"><i class="ti ti-user-check"></i> เจ้าหน้าที่</div>
+        <div class="info-val">${s.assignedTo||"ยังไม่มีผู้รับเคส"}</div>
+      </div>
+      <div>
+        <div class="info-key"><i class="ti ti-calendar"></i> อัปเดตล่าสุด</div>
+        <div class="info-val">${updatedDt}</div>
+      </div>
+      ${(s.remindCount > 0) ? `
+      <div>
+        <div class="info-key"><i class="ti ti-bell"></i> เตือนซ้ำแล้ว</div>
+        <div class="info-val" style="color:#9d174d;font-weight:600">${s.remindCount} ครั้ง</div>
+      </div>` : ""}
+    </div>
+
+    <div style="margin-bottom:12px">
+      <div class="info-key mb-1"><i class="ti ti-clock"></i> follow-up ถัดไป</div>
+      ${followUpChip(s)}
+    </div>
+
+    <div class="d-flex gap-2 flex-wrap">${btnHtml}${resendBtn}</div>
+  </div>`;
+}
+
+// ── Render ────────────────────────────────────
+function render() {
+  const kw = (document.getElementById("search")?.value||"").toLowerCase();
+  const fl = document.getElementById("filterLevel")?.value||"";
+  const so = document.getElementById("sortBy")?.value||"priority";
+
+  // อัปเดตนับแท็บ
+  updateTabCounts();
+
+  // กรองตาม active tambon + keyword + level
+  let entries = Object.entries(allData).filter(([, s]) => {
+    const hn   = String(s.hn  ||"").toLowerCase();
+    const name = String(s.name||"").toLowerCase();
+    if (kw && !hn.includes(kw) && !name.includes(kw)) return false;
+    if (activeTambon !== "all" && s.tambon !== activeTambon) return false;
+    if (fl === "ปกติ"       && !(s.level||"").includes("🟢"))                      return false;
+    if (fl === "เฝ้าระวัง"  && !(s.level||"").includes("🟠"))                      return false;
+    if (fl === "ด่วน"       && !(s.level||"").includes("🔴") && s.status!=="ด่วน") return false;
+    if (fl === "ปิดเคส"     && s.status!=="ปิดเคส")                                return false;
+    if (fl === "ไม่ตอบกลับ" && !s.noResponseAlert)                                 return false;
+    return true;
+  });
+
+  entries.sort((a, b) => {
+    if (so === "time") return (b[1].time||0) - (a[1].time||0);
+    if (so === "nextFollowUp") {
+      const getEff = s => s.nextFollowUp || (s.lastAskedAt ? s.lastAskedAt + 1 : Infinity);
+      return getEff(a[1]) - getEff(b[1]);
+    }
+    const aNo = a[1].noResponseAlert ? 0 : 1;
+    const bNo = b[1].noResponseAlert ? 0 : 1;
+    if (aNo !== bNo) return aNo - bNo;
+    const p1 = a[1].priority||99, p2 = b[1].priority||99;
+    return p1 !== p2 ? p1 - p2 : (b[1].time||0) - (a[1].time||0);
+  });
+
+  // ── Stats (ตามตำบลที่เลือก) ──
+  let total=0, normal=0, warn=0, crit=0, closed=0, noResp=0;
+  Object.values(allData).forEach(s => {
+    if (activeTambon !== "all" && s.tambon !== activeTambon) return;
+    total++;
+    if (s.status === "ปิดเคส")                                    closed++;
+    else if (s.noResponseAlert)                                    noResp++;
+    else if ((s.level||"").includes("🔴") || s.status === "ด่วน") crit++;
+    else if ((s.level||"").includes("🟠"))                         warn++;
+    else                                                            normal++;
+  });
+  document.getElementById("sTotal").textContent  = total;
+  document.getElementById("sNormal").textContent = normal;
+  document.getElementById("sWarn").textContent   = warn;
+  document.getElementById("sCrit").textContent   = crit;
+  document.getElementById("sClosed").textContent = closed;
+  document.getElementById("sNoResp").textContent = noResp;
+
+  const list = document.getElementById("cardList");
+
+  if (!entries.length) {
+    list.innerHTML = `<div class="empty-state">
+      <i class="ti ti-mood-empty" style="font-size:40px;display:block;margin-bottom:10px"></i>
+      ไม่พบข้อมูลที่ตรงกัน
+    </div>`;
+    return;
+  }
+
+  // โหมด "ทุกตำบล" → แยก section ตำบล
+  if (activeTambon === "all") {
+    const TAMBON_ORDER = ["kolok","munoh","puyoh","pasemas",""];
+    const TAMBON_ICON  = { kolok:"ti-building-community", munoh:"ti-map-pin", puyoh:"ti-map-pin", pasemas:"ti-map-pin" };
+    const grouped = {};
+    entries.forEach(([key, s]) => {
+      const t = s.tambon || "";
+      if (!grouped[t]) grouped[t] = [];
+      grouped[t].push([key, s]);
+    });
+    let html = "";
+    TAMBON_ORDER.forEach(t => {
+      if (!grouped[t] || !grouped[t].length) return;
+      const label = TAMBON_NAME[t] || (t ? t : "ไม่ระบุตำบล");
+      const icon  = TAMBON_ICON[t] || "📍";
+      html += `<div class="tambon-section-header">
+        <i class="ti ${icon}" style="font-size:16px;color:#1d4ed8"></i>
+        <span>${label}</span>
+        <span style="font-size:12px;font-weight:500;color:#6b7280;background:#f1f5f9;padding:2px 10px;border-radius:20px">${grouped[t].length} เคส</span>
+      </div>`;
+      grouped[t].forEach(([key, s]) => { html += buildCard(key, s, false); });
+    });
+    list.innerHTML = html;
+  } else {
+    // โหมดตำบลเดียว → แสดงทั่วไป ไม่มี section header
+    list.innerHTML = entries.map(([key, s]) => buildCard(key, s, false)).join("");
+  }
+}
+
+// ── Resend — ไม่จำกัดจำนวนครั้ง ──────────────
+async function resendFollowUp(key, userId) {
+  const btn = document.getElementById("resend-" + key);
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> กำลังส่ง...`;
+  }
+  try {
+    const snap = await db.ref("symptoms/" + key).once("value");
+    const s    = snap.val();
+    if (!s)        throw new Error("ไม่พบข้อมูล");
+    if (!s.userId) throw new Error("ไม่พบ LINE User ID — ผู้ปกครองยังไม่ลงทะเบียน LINE");
+
+    const res = await fetch("https://vaccine-line-api.onrender.com/api/resend-followup", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({
+        key,
+        userId:   s.userId,
+        name:     s.name    || "ผู้ปกครอง",
+        step:     s.followStep || 1,
+        symptoms: s.symptom || "",
+        hn:       s.hn      || "",
+      }),
+    });
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new Error(errBody.message || `Server ตอบกลับ ${res.status}`);
+    }
+    showToast(`✅ ส่งแบบสอบถามให้ ${s.name || "ผู้ปกครอง"} ทาง LINE แล้ว!`, "success");
+  } catch (err) {
+    showToast("❌ ส่งไม่สำเร็จ: " + err.message, "error");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<i class="ti ti-send"></i> ส่งอีกครั้ง`;
+    }
+  }
+}
+
+// ── Toast ─────────────────────────────────────
+function showToast(msg, type = "") {
+  const wrap = document.getElementById("toast-wrap");
+  const el   = document.createElement("div");
+  el.className   = "toast-msg " + type;
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+// ── Action Modal ──────────────────────────────
+function openAction(key, action) {
+  pendingKey = key; pendingAction = action;
+  const titles = { accept:"รับเคส", close:"จบเคส / ปิด", reopen:"เปิดเคสใหม่" };
+  document.getElementById("staffModalTitle").textContent = titles[action] || "ดำเนินการ";
+  document.getElementById("staffName").value = localStorage.getItem("staffName") || "";
+  staffModal.show();
+  setTimeout(() => document.getElementById("staffName").focus(), 300);
+}
+
+document.getElementById("staffConfirm").addEventListener("click", () => {
+  const staff = document.getElementById("staffName").value.trim() || "เจ้าหน้าที่";
+  localStorage.setItem("staffName", staff);
+  staffModal.hide();
+  if (!pendingKey) return;
+  const key = pendingKey, action = pendingAction;
+  pendingKey = pendingAction = null;
+  const now = Date.now();
+  if (action === "accept") {
+    db.ref("symptoms/" + key).update({ status:"กำลังติดตาม", assignedTo:staff, followedAt:now });
+  } else if (action === "close") {
+    db.ref("symptoms/" + key).update({
+      status:"ปิดเคส", level:"🟢 ปกติ", assignedTo:staff,
+      priority:99, closedAt:now,
+      noResponseAlert:false, remindCount:0
+    });
+  } else if (action === "reopen") {
+    db.ref("symptoms/" + key).update({
+      status:"รอติดตาม", closedAt:null, assignedTo:"", priority:3,
+      noResponseAlert:false, remindCount:0
+    });
+  }
+});
+
+document.getElementById("staffName").addEventListener("keydown", e => {
+  if (e.key === "Enter") document.getElementById("staffConfirm").click();
+});
+
+// ── Firebase listener ─────────────────────────
+db.ref("symptoms").on("value", snap => {
+  allData = snap.val() || {};
+  render();
+  document.getElementById("lastUpdate").textContent =
+    "อัปเดตเมื่อ " + new Date().toLocaleTimeString("th-TH");
+});
+
+function manualRefresh() {
+  db.ref("symptoms").once("value", snap => {
+    allData = snap.val() || {};
+    render();
+    document.getElementById("lastUpdate").textContent =
+      "อัปเดตเมื่อ " + new Date().toLocaleTimeString("th-TH");
+  });
+}
+
+setInterval(render, 60000);
+</script>
+</body>
+</html>

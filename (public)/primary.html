@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VaxKolok — วัคซีนประถมศึกษา</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --green:#059669;--green-light:#d1fae5;
+  --red:#dc2626;--red-light:#fee2e2;
+  --orange:#d97706;--orange-light:#fef3c7;
+  --blue:#1d4ed8;--blue-light:#dbeafe;
+  --purple:#7c3aed;--purple-light:#ede9fe;
+  --pink:#db2777;--pink-light:#fce7f3;
+  --ink:#111827;--ink2:#374151;--ink3:#6b7280;
+  --bg:#f3f4f6;--card:#ffffff;--border:#e5e7eb;
+  --r:14px;
+}
+html{font-size:16px;}
+body{font-family:'IBM Plex Sans Thai',sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;padding-bottom:60px;}
+.topbar{background:var(--green);padding:0 24px;height:60px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none;flex-shrink:0;}
+.logo-name{font-size:20px;font-weight:800;color:#fff;}
+.logo-sub{font-size:12px;color:rgba(255,255,255,.8);margin-top:1px;}
+.topbar-links{display:flex;align-items:center;gap:4px;margin-left:auto;margin-right:16px;}
+.topbar-link{font-size:13px;font-weight:600;color:rgba(255,255,255,.85);text-decoration:none;padding:6px 12px;border-radius:8px;transition:background .15s;}
+.topbar-link:hover{background:rgba(255,255,255,.15);}
+.topbar-link.active{background:rgba(255,255,255,.2);}
+.btn-login{text-decoration:none;font-size:14px;font-weight:700;background:#fff;color:var(--green);border-radius:10px;padding:8px 18px;}
+.tab-bar{background:#fff;border-bottom:2px solid var(--border);padding:0 24px;display:flex;}
+.tab-btn{font-family:inherit;font-size:14px;font-weight:700;color:var(--ink3);background:none;border:none;border-bottom:3px solid transparent;padding:14px 20px;cursor:pointer;display:flex;align-items:center;gap:7px;margin-bottom:-2px;transition:all .15s;}
+.tab-btn:hover{color:var(--ink);}
+.tab-btn.active{color:var(--green);border-bottom-color:var(--green);}
+.tab-badge{background:var(--green);color:#fff;font-size:11px;font-weight:800;border-radius:99px;padding:1px 7px;margin-left:2px;}
+.filter-wrap{background:var(--card);border-bottom:2px solid var(--border);padding:14px 24px;display:flex;flex-wrap:wrap;gap:16px;align-items:center;}
+.filter-group{display:flex;align-items:center;gap:8px;}
+.filter-group label{font-size:14px;font-weight:700;color:var(--ink2);white-space:nowrap;}
+select{height:40px;border:2px solid var(--border);border-radius:10px;font-family:inherit;font-size:14px;font-weight:600;color:var(--ink);padding:0 14px;background:#fff;cursor:pointer;}
+select:focus{outline:none;border-color:var(--green);}
+.update-time{font-size:13px;color:var(--ink3);margin-left:auto;}
+.wrap{max-width:1080px;margin:0 auto;padding:28px 20px;}
+.sec-label{font-size:13px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px;margin-top:4px;display:flex;align-items:center;gap:8px;}
+.sec-label::after{content:'';flex:1;height:2px;background:var(--border);border-radius:99px;}
+.grade-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:28px;}
+.grade-pill{display:flex;align-items:center;gap:8px;background:var(--card);border:2px solid var(--border);border-radius:var(--r);padding:12px 18px;cursor:pointer;transition:all .2s;flex:1;min-width:120px;}
+.grade-pill.active{border-color:var(--green);background:var(--green-light);}
+.grade-pill-label{font-size:14px;font-weight:700;color:var(--ink2);}
+.grade-pill-count{font-size:22px;font-weight:800;color:var(--ink);}
+.grade-pill.active .grade-pill-label,.grade-pill.active .grade-pill-count{color:var(--green);}
+.grade-pill-sub{font-size:11px;color:var(--ink3);margin-top:2px;}
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px;}
+.kpi{background:var(--card);border:2px solid var(--border);border-radius:var(--r);padding:22px 20px 18px;}
+.kpi-icon{font-size:24px;margin-bottom:8px;width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;}
+.kpi.blue .kpi-icon{background:var(--blue-light);color:var(--blue);}
+.kpi.green .kpi-icon{background:var(--green-light);color:var(--green);}
+.kpi.red .kpi-icon{background:var(--red-light);color:var(--red);}
+.kpi.orange .kpi-icon{background:var(--orange-light);color:var(--orange);}
+.kpi-label{font-size:13px;font-weight:700;color:var(--ink3);margin-bottom:6px;}
+.kpi-num{font-size:48px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;}
+.kpi-sub{font-size:13px;color:var(--ink3);margin-top:6px;}
+.kpi.blue .kpi-num{color:var(--blue);}
+.kpi.green .kpi-num{color:var(--green);}
+.kpi.red .kpi-num{color:var(--red);}
+.kpi.orange .kpi-num{color:var(--orange);}
+.traffic-row{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:28px;}
+.tl{border-radius:var(--r);padding:20px;display:flex;align-items:center;gap:16px;border:2px solid transparent;}
+.tl.green{background:var(--green-light);border-color:#6ee7b7;}
+.tl.orange{background:var(--orange-light);border-color:#fcd34d;}
+.tl.red{background:var(--red-light);border-color:#fca5a5;}
+.tl-dot{width:56px;height:56px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:24px;color:#fff;}
+.tl.green .tl-dot{background:var(--green);}
+.tl.orange .tl-dot{background:var(--orange);}
+.tl.red .tl-dot{background:var(--red);}
+.tl-label{font-size:14px;font-weight:700;color:var(--ink2);margin-bottom:4px;}
+.tl-num{font-size:36px;font-weight:800;line-height:1;}
+.tl.green .tl-num{color:var(--green);}
+.tl.orange .tl-num{color:var(--orange);}
+.tl.red .tl-num{color:var(--red);}
+.tl-sub{font-size:13px;color:var(--ink3);margin-top:3px;}
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:28px;align-items:start;}
+.chart-card{background:var(--card);border:2px solid var(--border);border-radius:var(--r);overflow:hidden;}
+.chart-head{padding:16px 20px;border-bottom:2px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.chart-head-title{font-size:16px;font-weight:800;color:var(--ink);display:flex;align-items:center;gap:8px;}
+.chart-body{padding:20px;}
+.vax-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:28px;}
+.vax-card{background:var(--card);border:2px solid var(--border);border-radius:var(--r);padding:18px 20px;}
+.vax-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.vax-card-name{font-size:14px;font-weight:800;color:var(--ink);}
+.vax-card-grade{font-size:11px;font-weight:700;color:var(--purple);background:var(--purple-light);padding:3px 8px;border-radius:99px;}
+.vax-bar-bg{height:10px;border-radius:99px;background:#e5e7eb;overflow:hidden;margin-bottom:8px;}
+.vax-bar-fill{height:100%;border-radius:99px;transition:width .8s ease;}
+.vax-bar-fill.high{background:var(--green);}
+.vax-bar-fill.mid{background:var(--orange);}
+.vax-bar-fill.low{background:var(--red);}
+.vax-card-stats{display:flex;justify-content:space-between;font-size:13px;}
+.vax-pct{font-weight:800;}
+.vax-pct.high{color:var(--green);}
+.vax-pct.mid{color:var(--orange);}
+.vax-pct.low{color:var(--red);}
+.footer{text-align:center;font-size:13px;color:var(--ink3);padding-top:16px;}
+/* LIST */
+.list-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:18px;}
+.search-box{position:relative;}
+.search-box i{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--ink3);font-size:13px;pointer-events:none;}
+.search-box input{height:40px;border:2px solid var(--border);border-radius:10px;padding:0 12px 0 34px;font-family:inherit;font-size:14px;color:var(--ink);width:240px;}
+.search-box input:focus{outline:none;border-color:var(--green);}
+.btn{display:inline-flex;align-items:center;gap:7px;height:40px;padding:0 18px;border-radius:10px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;border:2px solid transparent;transition:all .15s;white-space:nowrap;}
+.btn-outline{background:#fff;border-color:var(--border);color:var(--ink2);}
+.btn-outline:hover{border-color:var(--ink3);}
+.btn-green{background:var(--green);color:#fff;border-color:var(--green);}
+.btn-green:hover{background:#047857;}
+.btn-red{background:var(--red);color:#fff;border-color:var(--red);}
+.btn-red:hover{background:#991b1b;}
+.btn-sm{height:34px;padding:0 12px;font-size:13px;border-radius:8px;}
+.list-count{margin-left:auto;font-size:14px;font-weight:700;color:var(--ink3);}
+.school-group{margin-bottom:24px;}
+.school-header{display:flex;align-items:center;justify-content:space-between;background:var(--card);border:2px solid var(--border);border-radius:var(--r) var(--r) 0 0;padding:14px 20px;border-bottom:none;cursor:pointer;transition:background .15s;}
+.school-header:hover{background:#f9fafb;}
+.school-header-left{display:flex;align-items:center;gap:12px;}
+.school-icon{width:36px;height:36px;border-radius:10px;background:var(--blue-light);color:var(--blue);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
+.school-name{font-size:15px;font-weight:800;color:var(--ink);}
+.school-meta{font-size:13px;color:var(--ink3);margin-top:2px;}
+.school-header-right{display:flex;align-items:center;gap:10px;}
+.school-stat{text-align:center;}
+.school-stat-num{font-size:18px;font-weight:800;line-height:1;}
+.school-stat-lbl{font-size:11px;color:var(--ink3);}
+.school-stat.green .school-stat-num{color:var(--green);}
+.school-stat.red .school-stat-num{color:var(--red);}
+.school-pct-badge{height:28px;padding:0 10px;border-radius:99px;font-size:13px;font-weight:800;display:flex;align-items:center;}
+.school-pct-badge.high{background:var(--green-light);color:var(--green);}
+.school-pct-badge.mid{background:var(--orange-light);color:var(--orange);}
+.school-pct-badge.low{background:var(--red-light);color:var(--red);}
+.school-chevron{color:var(--ink3);transition:transform .2s;font-size:14px;}
+.school-chevron.open{transform:rotate(180deg);}
+.school-table-wrap{border:2px solid var(--border);border-top:none;border-radius:0 0 var(--r) var(--r);overflow:hidden;}
+.data-table{width:100%;border-collapse:collapse;font-size:13px;}
+.data-table thead th{background:#f9fafb;padding:10px 12px;text-align:left;font-size:11px;font-weight:700;color:var(--ink3);letter-spacing:.04em;text-transform:uppercase;border-bottom:2px solid var(--border);white-space:nowrap;}
+.data-table tbody tr{border-bottom:1px solid var(--border);transition:background .1s;}
+.data-table tbody tr:last-child{border-bottom:none;}
+.data-table tbody tr:hover{background:#f9fafb;}
+.data-table td{padding:10px 12px;vertical-align:middle;}
+.td-name{font-weight:700;color:var(--ink);}
+.td-mono{font-family:monospace;font-size:12px;color:var(--ink3);}
+.vax-pip{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:5px;font-size:10px;font-weight:700;margin:1px;}
+.vax-pip.done{background:var(--green-light);color:var(--green);}
+.vax-pip.miss{background:var(--red-light);color:var(--red);}
+.vax-pip.na{background:#f3f4f6;color:#d1d5db;}
+.action-btns{display:flex;gap:6px;justify-content:flex-end;}
+.icon-btn{width:30px;height:30px;border-radius:7px;border:2px solid var(--border);background:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:12px;color:var(--ink3);transition:all .15s;}
+.icon-btn:hover{border-color:var(--green);color:var(--green);}
+.icon-btn.del:hover{border-color:var(--red);color:var(--red);}
+.add-row-btn{display:flex;align-items:center;gap:8px;width:100%;padding:11px 14px;background:#fafafa;border:none;font-family:inherit;font-size:13px;font-weight:700;color:var(--ink3);cursor:pointer;border-top:2px dashed var(--border);transition:all .15s;}
+.add-row-btn:hover{background:var(--green-light);color:var(--green);}
+.no-school-hint{background:var(--card);border:2px dashed var(--border);border-radius:var(--r);padding:40px 20px;text-align:center;color:var(--ink3);margin-bottom:20px;}
+.no-school-hint i{font-size:36px;color:var(--border);display:block;margin-bottom:12px;}
+.no-school-hint p{font-size:15px;font-weight:700;}
+.no-school-hint small{font-size:13px;}
+/* MODAL */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(3px);z-index:500;display:none;align-items:center;justify-content:center;padding:20px;}
+.overlay.open{display:flex;}
+.modal{background:#fff;border-radius:var(--r);width:100%;max-width:600px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 25px 60px rgba(0,0,0,.2);}
+.modal-head{padding:20px 24px;border-bottom:2px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.modal-title{font-size:18px;font-weight:800;color:var(--ink);}
+.modal-close{background:none;border:none;font-size:18px;color:var(--ink3);cursor:pointer;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:8px;}
+.modal-close:hover{background:var(--bg);}
+.modal-body{padding:24px;overflow-y:auto;flex:1;}
+.modal-footer{padding:16px 24px;border-top:2px solid var(--border);display:flex;justify-content:flex-end;gap:10px;flex-shrink:0;}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.form-full{grid-column:1/-1;}
+.field{display:flex;flex-direction:column;gap:5px;}
+.field label{font-size:13px;font-weight:700;color:var(--ink2);}
+.field input,.field select,.field textarea{height:40px;border:2px solid var(--border);border-radius:10px;font-family:inherit;font-size:14px;color:var(--ink);padding:0 12px;transition:border-color .15s;}
+.field textarea{height:64px;padding:8px 12px;resize:vertical;line-height:1.5;}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--green);}
+.field-note{font-size:12px;color:var(--ink3);}
+.req{color:var(--red);}
+.vax-toggle-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px;}
+.vtog{border:2px solid var(--border);border-radius:10px;padding:10px 12px;cursor:pointer;transition:all .15s;display:flex;justify-content:space-between;align-items:center;}
+.vtog:hover{border-color:var(--green);}
+.vtog.on{background:var(--green-light);border-color:var(--green);}
+.vtog-name{font-size:13px;font-weight:700;color:var(--ink2);}
+.vtog.on .vtog-name{color:var(--green);}
+.vtog-check{font-size:16px;}
+.vtog.on .vtog-check{color:var(--green);}
+.vtog:not(.on) .vtog-check{color:#d1d5db;}
+.del-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:600;display:none;align-items:center;justify-content:center;padding:20px;}
+.del-overlay.open{display:flex;}
+.del-box{background:#fff;border-radius:var(--r);width:380px;max-width:95vw;padding:28px;text-align:center;box-shadow:0 25px 60px rgba(0,0,0,.2);}
+.del-icon{width:56px;height:56px;border-radius:50%;background:var(--red-light);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:24px;color:var(--red);}
+.del-title{font-size:18px;font-weight:800;margin-bottom:8px;}
+.del-msg{font-size:14px;color:var(--ink3);margin-bottom:24px;line-height:1.6;}
+.del-name{font-weight:700;color:var(--ink);}
+.del-btns{display:flex;gap:10px;justify-content:center;}
+/* IMPORT */
+.import-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(3px);z-index:500;display:none;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto;}
+.import-overlay.open{display:flex;}
+.import-modal{background:#fff;border-radius:var(--r);width:100%;max-width:700px;box-shadow:0 25px 60px rgba(0,0,0,.2);margin:auto;}
+.import-steps{display:flex;border-bottom:2px solid var(--border);padding:0 24px;}
+.istep{display:flex;align-items:center;gap:8px;padding:14px 16px;font-size:13px;font-weight:700;color:var(--ink3);border-bottom:3px solid transparent;margin-bottom:-2px;}
+.istep.active{color:var(--green);border-bottom-color:var(--green);}
+.istep.done{color:var(--green);}
+.istep-num{width:22px;height:22px;border-radius:50%;background:var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:var(--ink3);}
+.istep.active .istep-num,.istep.done .istep-num{background:var(--green);color:#fff;}
+.import-zone{border:2px dashed var(--border);border-radius:var(--r);padding:32px;text-align:center;cursor:pointer;transition:all .2s;background:#fafafa;margin-bottom:18px;}
+.import-zone:hover,.import-zone.drag{border-color:var(--green);background:var(--green-light);}
+.import-zone i{font-size:36px;color:var(--ink3);display:block;margin-bottom:10px;}
+.import-zone p{font-size:14px;font-weight:700;color:var(--ink2);}
+.import-zone small{font-size:13px;color:var(--ink3);}
+.template-hint{background:var(--orange-light);border:2px solid #fcd34d;border-radius:10px;padding:16px;font-size:13px;line-height:1.8;color:var(--ink2);}
+.preview-wrap{border:2px solid var(--border);border-radius:var(--r);overflow:hidden;overflow-x:auto;margin-bottom:10px;}
+.preview-table{width:100%;border-collapse:collapse;font-size:13px;}
+.preview-table th{background:#f9fafb;padding:8px 12px;text-align:left;font-size:12px;font-weight:700;color:var(--ink3);border-bottom:2px solid var(--border);}
+.preview-table td{padding:8px 12px;border-bottom:1px solid var(--border);}
+.preview-table tr:last-child td{border-bottom:none;}
+.toast{position:fixed;bottom:28px;right:28px;z-index:900;background:var(--ink);color:#fff;border-radius:12px;padding:14px 20px;font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;min-width:220px;box-shadow:0 8px 24px rgba(0,0,0,.2);transform:translateY(80px);opacity:0;transition:all .3s;pointer-events:none;}
+.toast.show{transform:translateY(0);opacity:1;}
+.toast.ok i{color:#34d399;}
+.toast.err i{color:#f87171;}
+.toast.warn i{color:#fbbf24;}
+@media(max-width:900px){
+  .chart-row{grid-template-columns:1fr;}
+  .kpi-row{grid-template-columns:1fr 1fr;}
+  .traffic-row{grid-template-columns:1fr;}
+  .form-grid{grid-template-columns:1fr;}
+  .school-header{flex-direction:column;align-items:flex-start;gap:10px;}
+}
+@media(max-width:500px){
+  .kpi-num{font-size:36px;}
+  .grade-pill{min-width:80px;padding:10px 12px;}
+  .search-box input{width:180px;}
+}
+</style>
+</head>
+<body>
+
+<nav class="topbar">
+  <a href="landing.html" class="logo">
+    <div style="width:36px;height:36px;background:rgba(255,255,255,.25);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+      <i class="fa-solid fa-school" style="color:#fff;font-size:16px;"></i>
+    </div>
+    <div>
+      <div class="logo-name">VaxKolok</div>
+      <div class="logo-sub">วัคซีนประถมศึกษา · อ.สุไหงโก-ลก</div>
+    </div>
+  </a>
+  <div class="topbar-links">
+    <a href="index.html" class="topbar-link"><i class="fa fa-house fa-sm"></i> หน้าแรก</a>
+    <a href="primary.html" class="topbar-link active"><i class="fa fa-school fa-sm"></i> ประถม</a>
+  </div>
+  <a href="login.html" class="btn-login">เข้าสู่ระบบ</a>
+</nav>
+
+<script>
+function switchTab(t){
+  ["dashboard","list"].forEach(function(id){
+    var p=document.getElementById("p_panel_"+id);
+    var b=document.getElementById("p_tab_"+id);
+    if(p)p.style.display=id===t?"":"none";
+    if(b)b.classList.toggle("active",id===t);
+  });
+  var vg=document.getElementById("p_vaxFilterGroup");
+  if(vg)vg.style.display=t==="list"?"none":"";
+  if(t==="list"&&typeof window.p_renderSchoolList==="function")window.p_renderSchoolList();
+}
+</script>
+
+<div class="tab-bar">
+  <button class="tab-btn active" id="p_tab_dashboard" onclick="switchTab('dashboard')">
+    <i class="fa fa-chart-bar"></i> ภาพรวม
+  </button>
+  <button class="tab-btn" id="p_tab_list" onclick="switchTab('list')">
+    <i class="fa fa-list-ul"></i> รายชื่อ
+    <span class="tab-badge" id="p_listBadge">0</span>
+  </button>
+</div>
+
+<div class="filter-wrap">
+  <div class="filter-group">
+    <label>ตำบล</label>
+    <select id="p_tambonFilter" onchange="window.p_populateVillageFilter&&window.p_populateVillageFilter();window.p_onFilterChange&&window.p_onFilterChange()">
+      <option value="all">ทุกตำบล</option>
+      <option value="kolok">สุไหงโก-ลก</option>
+      <option value="munoh">มูโนะ</option>
+      <option value="puyoh">ปูโยะ</option>
+      <option value="pasemas">ปาเสมัส</option>
+    </select>
+  </div>
+  <div class="filter-group">
+    <label>หมู่บ้าน</label>
+    <select id="p_villageFilter" onchange="window.p_onFilterChange&&window.p_onFilterChange()">
+      <option value="all">ทุกหมู่</option>
+    </select>
+  </div>
+  <div class="filter-group" id="p_vaxFilterGroup">
+    <label>วัคซีน</label>
+    <select id="p_vaccineFilter" onchange="window.p_onFilterChange&&window.p_onFilterChange()">
+      <option value="all">ทุกวัคซีน</option>
+      <option value="DTP5">DTP5</option>
+      <option value="OPV5">OPV5</option>
+      <option value="dT">dT (ป.6)</option>
+      <option value="HPV1">HPV เข็มที่ 1</option>
+      <option value="HPV2">HPV เข็มที่ 2</option>
+    </select>
+  </div>
+  <div class="update-time" id="p_updateTime">กำลังโหลด…</div>
+</div>
+
+<!-- PANEL: ภาพรวม -->
+<div id="p_panel_dashboard">
+<div class="wrap">
+  <div class="sec-label">เลือกชั้นประถมศึกษา</div>
+  <div class="grade-row" id="p_gradePills"></div>
+  <div class="sec-label">ภาพรวม</div>
+  <div class="kpi-row">
+    <div class="kpi blue"><div class="kpi-icon"><i class="fa-solid fa-children"></i></div><div class="kpi-label">เด็กทั้งหมด</div><div class="kpi-num" id="p_total">—</div><div class="kpi-sub">คน</div></div>
+    <div class="kpi green"><div class="kpi-icon"><i class="fa-solid fa-circle-check"></i></div><div class="kpi-label">ฉีดครบแล้ว</div><div class="kpi-num" id="p_done">—</div><div class="kpi-sub">คน</div></div>
+    <div class="kpi red"><div class="kpi-icon"><i class="fa-solid fa-triangle-exclamation"></i></div><div class="kpi-label">ยังไม่ครบ</div><div class="kpi-num" id="p_notdone">—</div><div class="kpi-sub">ต้องติดตาม</div></div>
+    <div class="kpi orange"><div class="kpi-icon"><i class="fa-solid fa-shield-virus"></i></div><div class="kpi-label">ความครอบคลุม</div><div class="kpi-num" id="p_percent">—</div><div class="kpi-sub">ของเด็กในช่วงนี้</div></div>
+  </div>
+  <div class="sec-label">สถานะวัคซีน</div>
+  <div class="traffic-row">
+    <div class="tl green"><div class="tl-dot"><i class="fa-solid fa-circle-check"></i></div><div><div class="tl-label">ดีแล้ว (≥ 80%)</div><div class="tl-num" id="p_tc_good">—</div><div class="tl-sub">วัคซีน</div></div></div>
+    <div class="tl orange"><div class="tl-dot"><i class="fa-solid fa-circle-exclamation"></i></div><div><div class="tl-label">ควรเพิ่ม (60–79%)</div><div class="tl-num" id="p_tc_mid">—</div><div class="tl-sub">วัคซีน</div></div></div>
+    <div class="tl red"><div class="tl-dot"><i class="fa-solid fa-circle-xmark"></i></div><div><div class="tl-label">ต้องเร่งด่วน (&lt;60%)</div><div class="tl-num" id="p_tc_low">—</div><div class="tl-sub">วัคซีน</div></div></div>
+  </div>
+  <div class="sec-label">ความครอบคลุมรายวัคซีน</div>
+  <div class="vax-grid" id="p_vaxGrid"></div>
+  <div class="sec-label">กราฟติดตาม</div>
+  <div class="chart-row">
+    <div class="chart-card">
+      <div class="chart-head"><div class="chart-head-title"><i class="fa-solid fa-venus-mars" style="color:var(--purple);"></i> ฉีดแล้ว แยกชาย/หญิง</div></div>
+      <div class="chart-body" style="position:relative;height:280px;"><canvas id="p_genderChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-head"><div class="chart-head-title"><i class="fa-solid fa-school" style="color:var(--blue);"></i> รายโรงเรียน</div><div style="font-size:13px;color:var(--ink3);" id="p_schoolChartSub"></div></div>
+      <div class="chart-body"><div id="p_schoolChartWrap" style="position:relative;"><canvas id="p_schoolChart"></canvas></div></div>
+    </div>
+  </div>
+  <div class="footer">ข้อมูล ณ วันที่ <span id="p_todayText"></span> · ระบบ VaxKolok</div>
+</div>
+</div>
+
+<!-- PANEL: รายชื่อ -->
+<div id="p_panel_list" style="display:none;">
+<div class="wrap">
+  <div class="list-toolbar">
+    <div class="search-box">
+      <i class="fa fa-search"></i>
+      <input type="search" id="p_searchInput" placeholder="ค้นหาชื่อ, HN, โรงเรียน…" oninput="window.p_renderSchoolList&&window.p_renderSchoolList()">
+    </div>
+    <button class="btn btn-outline" onclick="window.p_openImport&&window.p_openImport()"><i class="fa fa-file-import"></i> นำเข้าไฟล์</button>
+    <button class="btn btn-outline" onclick="window.p_exportCSV&&window.p_exportCSV()"><i class="fa fa-download"></i> ส่งออก CSV</button>
+    <button class="btn btn-green" onclick="window.p_openAddModal&&window.p_openAddModal(null)"><i class="fa fa-plus"></i> เพิ่มรายชื่อ</button>
+    <span class="list-count" id="p_listCount">0 คน</span>
+  </div>
+  <div id="p_schoolListWrap"></div>
+</div>
+</div>
+
+<!-- MODAL: เพิ่ม/แก้ไข -->
+<div class="overlay" id="p_formOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title" id="p_modalTitle">เพิ่มรายชื่อ</span>
+      <button class="modal-close" onclick="window.p_closeModal&&window.p_closeModal()"><i class="fa fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field form-full">
+          <label>ชื่อ-สกุล <span class="req">*</span></label>
+          <input type="text" id="p_f_name" placeholder="เช่น มูฮัมหมัดซาฟีร์ ดอเลาะ">
+        </div>
+        <div class="field">
+          <label>วันเกิด <span class="req">*</span></label>
+          <input type="date" id="p_f_birth">
+        </div>
+        <div class="field">
+          <label>เพศ</label>
+          <select id="p_f_gender">
+            <option value="">ไม่ระบุ</option>
+            <option value="ชาย">ชาย</option>
+            <option value="หญิง">หญิง</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>HN</label>
+          <input type="text" id="p_f_hn" placeholder="เช่น 12345">
+          <span class="field-note">ถ้าไม่มีสามารถเว้นว่างได้</span>
+        </div>
+        <div class="field form-full">
+          <label>โรงเรียน <span class="req">*</span></label>
+          <input type="text" id="p_f_school" placeholder="เช่น บ้านปาเสมัส" list="p_schoolSuggestions">
+          <datalist id="p_schoolSuggestions"></datalist>
+        </div>
+        <div class="field">
+          <label>ตำบล</label>
+          <select id="p_f_tambon" onchange="window.p_updateModalVillage&&window.p_updateModalVillage()">
+            <option value="">-- เลือกตำบล --</option>
+            <option value="kolok">สุไหงโก-ลก</option>
+            <option value="munoh">มูโนะ</option>
+            <option value="puyoh">ปูโยะ</option>
+            <option value="pasemas">ปาเสมัส</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>หมู่บ้าน</label>
+          <select id="p_f_village"><option value="">-- เลือกหมู่บ้าน --</option></select>
+        </div>
+        <div class="field form-full">
+          <label>โรคประจำตัว</label>
+          <input type="text" id="p_f_disease" placeholder="เช่น เบาหวาน, ความดัน (ถ้าไม่มีเว้นว่าง)">
+        </div>
+        <div class="field form-full">
+          <label>ประวัติแพ้ยา</label>
+          <input type="text" id="p_f_allergy" placeholder="เช่น แพ้เพนิซิลลิน (ถ้าไม่มีเว้นว่าง)">
+        </div>
+        <div class="field form-full">
+          <label>หมายเหตุ</label>
+          <textarea id="p_f_note" placeholder="บันทึกเพิ่มเติม"></textarea>
+        </div>
+        <div class="field form-full">
+          <label>สถานะวัคซีน</label>
+          <div class="vax-toggle-grid" id="p_vaxToggleGrid"></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="window.p_closeModal&&window.p_closeModal()">ยกเลิก</button>
+      <button class="btn btn-green" onclick="window.p_saveRecord&&window.p_saveRecord()"><i class="fa fa-floppy-disk"></i> บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: ยืนยันลบ -->
+<div class="del-overlay" id="p_delOverlay">
+  <div class="del-box">
+    <div class="del-icon"><i class="fa fa-trash"></i></div>
+    <div class="del-title">ยืนยันการลบ</div>
+    <div class="del-msg">คุณต้องการลบข้อมูลของ<br><span class="del-name" id="p_delName"></span><br>ออกจากระบบ? ไม่สามารถกู้คืนได้</div>
+    <div class="del-btns">
+      <button class="btn btn-outline" onclick="window.p_closeDelModal&&window.p_closeDelModal()">ยกเลิก</button>
+      <button class="btn btn-red" onclick="window.p_confirmDelete&&window.p_confirmDelete()"><i class="fa fa-trash"></i> ลบ</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: นำเข้าไฟล์ -->
+<div class="import-overlay" id="p_importOverlay">
+  <div class="import-modal">
+    <div class="modal-head">
+      <span class="modal-title"><i class="fa fa-file-import" style="color:var(--green);margin-right:8px;"></i>นำเข้าไฟล์รายชื่อ</span>
+      <button class="modal-close" onclick="window.p_closeImport&&window.p_closeImport()"><i class="fa fa-xmark"></i></button>
+    </div>
+    <div class="import-steps">
+      <div class="istep active" id="p_istep_1"><div class="istep-num">1</div> เลือกไฟล์</div>
+      <div class="istep" id="p_istep_2"><div class="istep-num">2</div> ตรวจสอบ</div>
+      <div class="istep" id="p_istep_3"><div class="istep-num">3</div> เสร็จสิ้น</div>
+    </div>
+    <div class="modal-body" style="padding:24px;">
+      <div id="p_import_step1">
+        <div class="import-zone" id="p_dropZone"
+          onclick="document.getElementById('p_fileInput').click()"
+          ondragover="event.preventDefault();this.classList.add('drag')"
+          ondragleave="this.classList.remove('drag')"
+          ondrop="window.p_handleDrop&&window.p_handleDrop(event)">
+          <i class="fa fa-cloud-arrow-up"></i>
+          <p>คลิกหรือลากไฟล์มาวางที่นี่</p>
+          <small>รองรับ .csv · .xlsx · .json</small>
+        </div>
+        <input type="file" id="p_fileInput" accept=".csv,.xlsx,.xls,.json" style="display:none"
+          onchange="window.p_handleFileSelect&&window.p_handleFileSelect(this.files[0])">
+        <div class="template-hint">
+          <strong><i class="fa fa-lightbulb"></i> คอลัมน์ที่รู้จัก (CSV/Excel):</strong><br>
+          <code>ชื่อ-สกุล</code>, <code>วันเกิด</code> (dd/mm/yyyy), <code>เพศ</code>, <code>HN</code>,
+          <code>โรงเรียน</code>, <code>ตำบล</code>, <code>หมู่</code>,
+          <code>โรคประจำตัว</code>, <code>แพ้ยา</code>,
+          <code>DTP5</code>, <code>OPV5</code>, <code>dT</code>, <code>HPV1</code>, <code>HPV2</code>
+          (ค่า: ฉีดแล้ว / yes / 1)<br>
+          <strong>JSON:</strong> array ของ object ที่มี field เดียวกัน
+          <div style="margin-top:10px;">
+            <button class="btn btn-outline btn-sm" onclick="window.p_downloadTemplate&&window.p_downloadTemplate()"><i class="fa fa-download"></i> ดาวน์โหลดตัวอย่าง CSV</button>
+          </div>
+        </div>
+      </div>
+      <div id="p_import_step2" style="display:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <div style="font-size:14px;font-weight:700;" id="p_importSummary"></div>
+          <button class="btn btn-outline btn-sm" onclick="window.p_goImportStep&&window.p_goImportStep(1)"><i class="fa fa-arrow-left"></i> เลือกใหม่</button>
+        </div>
+        <div class="preview-wrap"><table class="preview-table" id="p_importPreviewTable"></table></div>
+        <div style="font-size:13px;color:var(--ink3);" id="p_importNote"></div>
+      </div>
+      <div id="p_import_step3" style="display:none;text-align:center;padding:24px 0;">
+        <div style="font-size:52px;margin-bottom:14px;">✅</div>
+        <div style="font-size:20px;font-weight:800;margin-bottom:8px;" id="p_importDoneMsg"></div>
+        <div style="font-size:14px;color:var(--ink3);" id="p_importDoneSub"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="window.p_closeImport&&window.p_closeImport()">ปิด</button>
+      <button class="btn btn-green" id="p_importConfirmBtn" onclick="window.p_confirmImport&&window.p_confirmImport()" style="display:none;">
+        <i class="fa fa-file-import"></i> นำเข้า <span id="p_importCount">0</span> รายการ
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="p_toast"><i class="fa fa-circle-check"></i><span id="p_toastMsg"></span></div>
+
+<!-- stubs for app.js -->
+<select id="hospitalFilter" hidden></select>
+<nav id="pagination" hidden></nav>
+<tbody id="followTable" hidden></tbody>
+<div id="mobileList" hidden></div>
+<div style="display:none;overflow:hidden;width:0;height:0;">
+  <canvas id="followChart"></canvas><canvas id="vaccineChart"></canvas>
+</div>
+<div id="chartDescription" hidden></div>
+<div id="vaccineDescription" hidden></div>
+
+<script>
+(function(){
+/* ══ CONSTANTS ══ */
+const PV={
+  DTP5:{label:"DTP5",grade:"ป.1",minAge:72},
+  OPV5:{label:"OPV5",grade:"ป.1",minAge:72},
+  dT:  {label:"dT (ป.6)",grade:"ป.6",minAge:132},
+  HPV1:{label:"HPV เข็ม 1",grade:"ป.6",minAge:132},
+  HPV2:{label:"HPV เข็ม 2",grade:"ป.6",minAge:138},
+};
+const GRADES=[
+  {key:"all",label:"ทุกชั้น",minAge:72,maxAge:156},
+  {key:"p1",label:"ป.1",minAge:72,maxAge:84},
+  {key:"p2",label:"ป.2",minAge:84,maxAge:96},
+  {key:"p3",label:"ป.3",minAge:96,maxAge:108},
+  {key:"p4",label:"ป.4",minAge:108,maxAge:120},
+  {key:"p5",label:"ป.5",minAge:120,maxAge:132},
+  {key:"p6",label:"ป.6",minAge:132,maxAge:156},
+];
+const TM={kolok:"สุไหงโก-ลก",munoh:"มูโนะ",puyoh:"ปูโยะ",pasemas:"ปาเสมัส"};
+const VK=Object.keys(PV);
+const FB="primary_children";
+
+/* ══ STATE ══ */
+let _ch={}, _grade="all", _donutInst=null, _schoolInst=null;
+let _editKey=null, _delKey=null, _impRows=[], _collapsed=new Set();
+
+/* ══ HELPERS ══ */
+function age(b){
+  if(typeof getAgeMonths==="function")return getAgeMonths(b);
+  if(!b)return 0;
+  const d=new Date(b),n=new Date();
+  return(n.getFullYear()-d.getFullYear())*12+(n.getMonth()-d.getMonth());
+}
+function ageStr(b){
+  if(!b)return"—";
+  const d=new Date(b),n=new Date();
+  const mo=(n.getFullYear()-d.getFullYear())*12+(n.getMonth()-d.getMonth());
+  const y=Math.floor(mo/12),m=mo%12;
+  return y>0?(m>0?`${y}ปี ${m}ด.`:`${y} ปี`):`${m} ด.`;
+}
+function fmtDate(s){
+  if(!s)return"—";
+  const[y,m,d]=s.split("-");
+  return`${+d}/${+m}/${+y+543}`;
+}
+function pctCls(p){return p>=80?"high":p>=60?"mid":"low";}
+function normTambon(s){
+  const m={"สุไหงโก-ลก":"kolok","kolok":"kolok","มูโนะ":"munoh","munoh":"munoh","ปูโยะ":"puyoh","puyoh":"puyoh","ปาเสมัส":"pasemas","pasemas":"pasemas"};
+  return m[(s||"").trim()]||"";
+}
+function showToast(msg,type="ok"){
+  const t=document.getElementById("p_toast");
+  t.className="toast "+type;
+  t.querySelector("i").className="fa "+(type==="ok"?"fa-circle-check":type==="warn"?"fa-triangle-exclamation":"fa-circle-xmark");
+  document.getElementById("p_toastMsg").textContent=msg;
+  t.classList.add("show");
+  clearTimeout(window._p_tt);
+  window._p_tt=setTimeout(()=>t.classList.remove("show"),3500);
+}
+function G(id){return document.getElementById(id);}
+function filterCh(){
+  const t=G("p_tambonFilter").value, vl=G("p_villageFilter").value;
+  const g=GRADES.find(x=>x.key===_grade)||GRADES[0];
+  return Object.values(_ch).filter(c=>{
+    if(!c.name?.trim())return false;
+    if(t!=="all"&&c.tambon!==t)return false;
+    if(vl!=="all"&&c.village!==vl)return false;
+    const a=age(c.birth);
+    return a>=g.minAge&&a<g.maxAge;
+  });
+}
+function activeVax(){
+  const vf=G("p_vaccineFilter").value;
+  const g=GRADES.find(x=>x.key===_grade)||GRADES[0];
+  return Object.entries(PV).filter(([v,info])=>{
+    if(vf!=="all"&&v!==vf)return false;
+    if(_grade!=="all"&&!(info.minAge>=g.minAge&&info.minAge<g.maxAge))return false;
+    return true;
+  });
+}
+
+/* ══ FILTER ══ */
+window.p_populateVillageFilter=function(){
+  const t=G("p_tambonFilter").value;
+  const sel=G("p_villageFilter");
+  sel.innerHTML='<option value="all">ทุกหมู่</option>';
+  if(t==="all"||typeof villageData==="undefined")return;
+  Object.entries(villageData[t]||{}).sort((a,b)=>+a[0]-+b[0]).forEach(([vno,info])=>{
+    const o=document.createElement("option");
+    o.value=vno;o.textContent=`หมู่ ${vno} – ${info.name}`;sel.appendChild(o);
+  });
+};
+window.p_onFilterChange=function(){
+  const ch=filterCh(), vax=activeVax();
+  renderGradePills();updateKPI(ch,vax);updateTraffic(ch,vax);
+  renderVaxGrid(ch,vax);drawGenderChart(ch,vax);drawSchoolChart(ch,vax);
+  if(G("p_panel_list").style.display!=="none")window.p_renderSchoolList();
+};
+
+/* ══ GRADE PILLS ══ */
+function renderGradePills(){
+  const t=G("p_tambonFilter").value, vl=G("p_villageFilter").value;
+  G("p_gradePills").innerHTML=GRADES.map(g=>{
+    const cnt=Object.values(_ch).filter(c=>{
+      if(!c.name?.trim())return false;
+      if(t!=="all"&&c.tambon!==t)return false;
+      if(vl!=="all"&&c.village!==vl)return false;
+      const a=age(c.birth);return a>=g.minAge&&a<g.maxAge;
+    }).length;
+    return`<div class="grade-pill ${_grade===g.key?"active":""}" onclick="window.p_selectGrade('${g.key}')">
+      <div><div class="grade-pill-label">${g.label}</div><div class="grade-pill-sub">อายุ ${g.minAge/12}–${g.maxAge/12} ปี</div></div>
+      <div class="grade-pill-count">${cnt}</div></div>`;
+  }).join("");
+}
+window.p_selectGrade=function(key){_grade=key;window.p_onFilterChange();};
+
+/* ══ KPI ══ */
+function updateKPI(ch,vax){
+  const vf=G("p_vaccineFilter").value;
+  let total,done;
+  if(vf==="all"){
+    done=ch.filter(c=>vax.every(([v,info])=>{if(age(c.birth)<info.minAge)return true;return!!c.vaccines?.[v];})).length;
+    total=ch.length;
+  }else{
+    const info=PV[vf];
+    const el=ch.filter(c=>age(c.birth)>=info.minAge);
+    done=el.filter(c=>c.vaccines?.[vf]).length;total=el.length;
+  }
+  const pct=total>0?Math.round(done/total*100):0;
+  G("p_total").textContent=total;G("p_done").textContent=done;
+  G("p_notdone").textContent=total-done;G("p_percent").textContent=pct+"%";
+}
+function updateTraffic(ch,vax){
+  let good=0,mid=0,low=0;
+  vax.forEach(([v,info])=>{
+    const el=ch.filter(c=>age(c.birth)>=info.minAge);if(!el.length)return;
+    const p=el.filter(c=>c.vaccines?.[v]).length/el.length*100;
+    if(p>=80)good++;else if(p>=60)mid++;else low++;
+  });
+  G("p_tc_good").textContent=good;G("p_tc_mid").textContent=mid;G("p_tc_low").textContent=low;
+}
+function renderVaxGrid(ch,vax){
+  const el=G("p_vaxGrid");
+  if(!vax.length){el.innerHTML="<p style='color:var(--ink3)'>ไม่มีวัคซีนในช่วงนี้</p>";return;}
+  el.innerHTML=vax.map(([v,info])=>{
+    const elig=ch.filter(c=>age(c.birth)>=info.minAge);
+    const done=elig.filter(c=>c.vaccines?.[v]).length;
+    const p=elig.length>0?(done/elig.length*100):0;const cls=pctCls(p);
+    return`<div class="vax-card"><div class="vax-card-head"><div class="vax-card-name">${info.label}</div><div class="vax-card-grade">${info.grade}</div></div>
+      <div class="vax-bar-bg"><div class="vax-bar-fill ${cls}" style="width:${p.toFixed(1)}%"></div></div>
+      <div class="vax-card-stats"><span style="color:var(--ink3);font-size:13px;">${done} / ${elig.length} คน</span><span class="vax-pct ${cls}">${p.toFixed(0)}%</span></div></div>`;
+  }).join("");
+}
+
+/* ══ CHART 1: กราฟแท่งชาย/หญิง ══ */
+function drawGenderChart(ch,vax){
+  const vf=G("p_vaccineFilter").value;
+  // นับแยกชาย/หญิง ฉีดแล้ว/ยังไม่
+  let mDone=0,mNot=0,fDone=0,fNot=0,oDone=0,oNot=0;
+  ch.forEach(c=>{
+    let isDone;
+    if(vf==="all"){
+      isDone=vax.every(([v,info])=>{if(age(c.birth)<info.minAge)return true;return!!c.vaccines?.[v];});
+    }else{
+      const info=PV[vf];if(age(c.birth)<info.minAge)return;isDone=!!c.vaccines?.[vf];
+    }
+    if(c.gender==="ชาย"){if(isDone)mDone++;else mNot++;}
+    else if(c.gender==="หญิง"){if(isDone)fDone++;else fNot++;}
+    else{if(isDone)oDone++;else oNot++;}
+  });
+  const ctx=G("p_genderChart").getContext("2d");
+  if(_donutInst)_donutInst.destroy();
+  _donutInst=new Chart(ctx,{
+    type:"bar",
+    data:{
+      labels:["ชาย","หญิง","ไม่ระบุ"],
+      datasets:[
+        {label:"ฉีดแล้ว",data:[mDone,fDone,oDone],backgroundColor:"#059669",borderRadius:6,barThickness:32},
+        {label:"ยังไม่ฉีด",data:[mNot,fNot,oNot],backgroundColor:"#f87171",borderRadius:6,barThickness:32},
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:"top",labels:{font:{family:"IBM Plex Sans Thai",size:13,weight:"700"},padding:16,usePointStyle:true}},
+        tooltip:{bodyFont:{family:"IBM Plex Sans Thai",size:13}}},
+      scales:{
+        x:{grid:{display:false},ticks:{font:{family:"IBM Plex Sans Thai",size:13}}},
+        y:{grid:{color:"#f3f4f6"},ticks:{font:{family:"IBM Plex Sans Thai",size:13}},
+          title:{display:true,text:"จำนวนเด็ก (คน)",font:{family:"IBM Plex Sans Thai",size:12},color:"#6b7280"}}
+      }
+    }
+  });
+}
+
+/* ══ CHART 2: รายโรงเรียน ══ */
+function drawSchoolChart(ch,vax){
+  const vf=G("p_vaccineFilter").value;
+  const map={};
+  ch.forEach(c=>{
+    const school=c.school||"ไม่ระบุ";
+    if(!map[school])map[school]={done:0,not:0};
+    let isDone;
+    if(vf==="all"){isDone=vax.every(([v,info])=>{if(age(c.birth)<info.minAge)return true;return!!c.vaccines?.[v];});}
+    else{const info=PV[vf];if(age(c.birth)<info.minAge)return;isDone=!!c.vaccines?.[vf];}
+    if(isDone)map[school].done++;else map[school].not++;
+  });
+  const rows=Object.entries(map).filter(([,r])=>r.done+r.not>0).sort((a,b)=>a[0].localeCompare(b[0],"th"));
+  const labels=rows.map(r=>r[0]),doneD=rows.map(r=>r[1].done),notD=rows.map(r=>r[1].not);
+  const vLbl=vf==="all"?"ทุกวัคซีน":(PV[vf]?.label||vf);
+  G("p_schoolChartSub").textContent=vLbl;
+  const h=Math.max(260,rows.length*44+80);
+  G("p_schoolChartWrap").style.height=h+"px";
+  const ctx=G("p_schoolChart").getContext("2d");
+  if(_schoolInst)_schoolInst.destroy();
+  _schoolInst=new Chart(ctx,{type:"bar",
+    data:{labels,datasets:[
+      {label:"ฉีดแล้ว",data:doneD,backgroundColor:"#059669",borderRadius:6,barThickness:16},
+      {label:"ยังไม่ฉีด",data:notD,backgroundColor:"#f87171",borderRadius:6,barThickness:16},
+    ]},
+    options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:"top",labels:{font:{family:"IBM Plex Sans Thai",size:13,weight:"700"},padding:16,usePointStyle:true}},
+        tooltip:{bodyFont:{family:"IBM Plex Sans Thai",size:13},callbacks:{label:c=>{
+          const t=(doneD[c.dataIndex]||0)+(notD[c.dataIndex]||0);
+          const p=t>0?(c.parsed.x/t*100).toFixed(0):0;
+          return` ${c.dataset.label}: ${c.parsed.x} คน (${p}%)`;
+        }}}},
+      scales:{
+        x:{grid:{color:"#f3f4f6"},ticks:{font:{family:"IBM Plex Sans Thai",size:12}},
+          title:{display:true,text:"จำนวนเด็ก (คน)",font:{family:"IBM Plex Sans Thai",size:12},color:"#6b7280"}},
+        y:{grid:{display:false},ticks:{font:{family:"IBM Plex Sans Thai",size:12},padding:4}}
+      }
+    }
+  });
+}
+
+/* ══ SCHOOL LIST ══ */
+window.p_renderSchoolList=function(){
+  const q=(G("p_searchInput")?.value||"").trim().toLowerCase();
+  const g=GRADES.find(x=>x.key===_grade)||GRADES[0];
+  const t=G("p_tambonFilter").value, vl=G("p_villageFilter").value;
+  const filtered=Object.entries(_ch).filter(([k,c])=>{
+    if(!c.name?.trim())return false;
+    if(t!=="all"&&c.tambon!==t)return false;
+    if(vl!=="all"&&c.village!==vl)return false;
+    const a=age(c.birth);if(a<g.minAge||a>=g.maxAge)return false;
+    if(q&&![c.name,c.hn||"",c.school||""].some(s=>s.toLowerCase().includes(q)))return false;
+    return true;
+  });
+  G("p_listCount").textContent=filtered.length+" คน";
+  G("p_listBadge").textContent=Object.keys(_ch).length;
+  const groups={};
+  filtered.forEach(([k,c])=>{
+    const s=c.school||"ไม่ระบุโรงเรียน";
+    if(!groups[s])groups[s]=[];groups[s].push([k,c]);
+  });
+  const names=Object.keys(groups).sort((a,b)=>{
+    if(a==="ไม่ระบุโรงเรียน")return 1;if(b==="ไม่ระบุโรงเรียน")return -1;
+    return a.localeCompare(b,"th");
+  });
+  const wrap=G("p_schoolListWrap");
+  if(!names.length){
+    wrap.innerHTML=`<div class="no-school-hint"><i class="fa fa-school"></i><p>ยังไม่มีรายชื่อ</p><small>กดปุ่ม "เพิ่มรายชื่อ" หรือ "นำเข้าไฟล์"</small></div>`;
+    return;
+  }
+  wrap.innerHTML=names.map(school=>{
+    const rows=groups[school];const total=rows.length;
+    const done=rows.filter(([k,c])=>VK.every(v=>{const info=PV[v];if(age(c.birth)<info.minAge)return true;return!!c.vaccines?.[v];})).length;
+    const pct=total>0?Math.round(done/total*100):0;const cls=pctCls(pct);
+    const isOpen=!_collapsed.has(school);
+    const sid="sch_"+school.replace(/[^a-zA-Z0-9ก-๙]/g,"_");
+    const trows=rows.map(([k,c],i)=>{
+      const a=age(c.birth);
+      const pips=VK.map(v=>{
+        const info=PV[v];
+        if(a<info.minAge)return`<span class="vax-pip na" title="${info.label}">—</span>`;
+        return`<span class="vax-pip ${c.vaccines?.[v]?"done":"miss"}" title="${info.label}">${c.vaccines?.[v]?"✓":"✗"}</span>`;
+      }).join("");
+      const diseaseTag=c.disease?`<span style="font-size:11px;background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 5px;margin-left:4px;" title="โรคประจำตัว">${c.disease}</span>`:"";
+      const allergyTag=c.allergy?`<span style="font-size:11px;background:#fee2e2;color:#b91c1c;border-radius:4px;padding:1px 5px;margin-left:4px;" title="แพ้ยา">⚠ ${c.allergy}</span>`:"";
+      return`<tr>
+        <td style="color:var(--ink3);font-size:11px;">${i+1}</td>
+        <td class="td-name">${c.name}${diseaseTag}${allergyTag}</td>
+        <td class="td-mono">${c.hn||"—"}</td>
+        <td style="font-size:12px;">${c.gender||"—"}</td>
+        <td style="font-size:12px;">${ageStr(c.birth)}</td>
+        <td style="font-size:12px;color:var(--ink3);">${fmtDate(c.birth)}</td>
+        <td style="font-size:12px;">${TM[c.tambon]||c.tambon||"—"}${c.village?` หมู่ ${c.village}`:""}</td>
+        <td>${pips}</td>
+        <td><div class="action-btns">
+          <button class="icon-btn" onclick="window.p_openEditModal('${k}')" title="แก้ไข"><i class="fa fa-pen"></i></button>
+          <button class="icon-btn del" onclick="window.p_openDelModal('${k}')" title="ลบ"><i class="fa fa-trash"></i></button>
+        </div></td>
+      </tr>`;
+    }).join("");
+    return`<div class="school-group">
+      <div class="school-header" onclick="window.p_toggleSchool('${school}')">
+        <div class="school-header-left">
+          <div class="school-icon"><i class="fa fa-school"></i></div>
+          <div><div class="school-name">${school}</div><div class="school-meta">${total} คน</div></div>
+        </div>
+        <div class="school-header-right">
+          <div class="school-stat green"><div class="school-stat-num">${done}</div><div class="school-stat-lbl">ฉีดครบ</div></div>
+          <div class="school-stat red"><div class="school-stat-num">${total-done}</div><div class="school-stat-lbl">ยังไม่ครบ</div></div>
+          <div class="school-pct-badge ${cls}">${pct}%</div>
+          <i class="fa fa-chevron-down school-chevron ${isOpen?"open":""}" id="chev_${sid}"></i>
+        </div>
+      </div>
+      <div id="${sid}" style="display:${isOpen?"":"none"}">
+        <div class="school-table-wrap">
+          <table class="data-table">
+            <thead><tr><th>#</th><th>ชื่อ-สกุล</th><th>HN</th><th>เพศ</th><th>อายุ</th><th>วันเกิด</th><th>ที่อยู่</th><th>วัคซีน</th><th style="text-align:right;">จัดการ</th></tr></thead>
+            <tbody>${trows}</tbody>
+          </table>
+          <button class="add-row-btn" onclick="window.p_openAddModal('${school}')">
+            <i class="fa fa-plus"></i> เพิ่มรายชื่อในโรงเรียนนี้
+          </button>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+};
+
+window.p_toggleSchool=function(school){
+  const sid="sch_"+school.replace(/[^a-zA-Z0-9ก-๙]/g,"_");
+  const el=G(sid),chev=G("chev_"+sid);if(!el)return;
+  const open=el.style.display!=="none";
+  el.style.display=open?"none":"";
+  chev.classList.toggle("open",!open);
+  if(open)_collapsed.add(school);else _collapsed.delete(school);
+};
+
+/* ══ MODAL CRUD ══ */
+function updateSuggestions(){
+  const dl=G("p_schoolSuggestions");
+  const sc=[...new Set(Object.values(_ch).map(c=>c.school).filter(Boolean))].sort();
+  dl.innerHTML=sc.map(s=>`<option value="${s}">`).join("");
+}
+function buildVaxToggles(vax={}){
+  G("p_vaxToggleGrid").innerHTML=VK.map(v=>{
+    const info=PV[v];const on=!!vax[v];
+    return`<div class="vtog ${on?"on":""}" data-v="${v}" onclick="window.p_toggleVax(this)">
+      <span class="vtog-name">${info.label}</span>
+      <span class="vtog-check"><i class="fa ${on?"fa-circle-check":"fa-circle"}"></i></span>
+    </div>`;
+  }).join("");
+}
+window.p_toggleVax=function(el){
+  el.classList.toggle("on");const on=el.classList.contains("on");
+  el.querySelector(".vtog-check").innerHTML=`<i class="fa ${on?"fa-circle-check":"fa-circle"}"></i>`;
+};
+window.p_updateModalVillage=function(){
+  const t=G("p_f_tambon").value,sel=G("p_f_village");
+  sel.innerHTML='<option value="">-- เลือกหมู่บ้าน --</option>';
+  if(!t||typeof villageData==="undefined")return;
+  Object.entries(villageData[t]||{}).sort((a,b)=>+a[0]-+b[0]).forEach(([vno,info])=>{
+    const o=document.createElement("option");o.value=vno;o.textContent=`หมู่ ${vno} – ${info.name}`;sel.appendChild(o);
+  });
+};
+window.p_openAddModal=function(school=null){
+  _editKey=null;G("p_modalTitle").textContent="เพิ่มรายชื่อ";
+  ["p_f_name","p_f_hn","p_f_birth","p_f_disease","p_f_allergy","p_f_note"].forEach(id=>G(id).value="");
+  G("p_f_school").value=school&&school!=="ไม่ระบุโรงเรียน"?school:"";
+  G("p_f_tambon").value="";G("p_f_gender").value="";
+  window.p_updateModalVillage();buildVaxToggles();updateSuggestions();
+  G("p_formOverlay").classList.add("open");
+};
+window.p_openEditModal=function(k){
+  _editKey=k;const c=_ch[k];if(!c)return;
+  G("p_modalTitle").textContent="แก้ไขข้อมูล";
+  G("p_f_name").value=c.name||"";G("p_f_hn").value=c.hn||"";
+  G("p_f_birth").value=c.birth||"";G("p_f_school").value=c.school||"";
+  G("p_f_tambon").value=c.tambon||"";G("p_f_gender").value=c.gender||"";
+  G("p_f_disease").value=c.disease||"";G("p_f_allergy").value=c.allergy||"";
+  G("p_f_note").value=c.note||"";
+  window.p_updateModalVillage();G("p_f_village").value=c.village||"";
+  buildVaxToggles(c.vaccines||{});updateSuggestions();
+  G("p_formOverlay").classList.add("open");
+};
+window.p_closeModal=function(){G("p_formOverlay").classList.remove("open");};
+window.p_saveRecord=function(){
+  const name=G("p_f_name").value.trim();if(!name){showToast("กรุณาใส่ชื่อ-สกุล","err");return;}
+  const birth=G("p_f_birth").value;if(!birth){showToast("กรุณาเลือกวันเกิด","err");return;}
+  const school=G("p_f_school").value.trim();if(!school){showToast("กรุณาใส่ชื่อโรงเรียน","err");return;}
+  const vaccines={};
+  document.querySelectorAll("#p_vaxToggleGrid .vtog").forEach(el=>{const v=el.dataset.v;if(v)vaccines[v]=el.classList.contains("on");});
+  const rec={name,birth,school,vaccines,updatedAt:new Date().toISOString(),
+    hn:G("p_f_hn").value.trim()||null,
+    tambon:G("p_f_tambon").value||null,
+    village:G("p_f_village").value||null,
+    gender:G("p_f_gender").value||null,
+    disease:G("p_f_disease").value.trim()||null,
+    allergy:G("p_f_allergy").value.trim()||null,
+    note:G("p_f_note").value.trim()||null,
+  };
+  Object.keys(rec).forEach(k=>{if(rec[k]===null)delete rec[k];});
+  if(_editKey){
+    db.ref(FB+"/"+_editKey).update(rec)
+      .then(()=>{_ch[_editKey]={..._ch[_editKey],...rec};window.p_closeModal();window.p_onFilterChange();showToast("อัปเดตเรียบร้อย");})
+      .catch(()=>showToast("บันทึกไม่สำเร็จ","err"));
+  }else{
+    db.ref(FB).push({...rec,createdAt:new Date().toISOString()})
+      .then(ref=>{_ch[ref.key]={...rec};window.p_closeModal();window.p_onFilterChange();showToast("เพิ่มรายชื่อเรียบร้อย");})
+      .catch(()=>showToast("บันทึกไม่สำเร็จ","err"));
+  }
+};
+
+/* ══ DELETE ══ */
+window.p_openDelModal=function(k){
+  _delKey=k;G("p_delName").textContent=_ch[k]?.name||k;G("p_delOverlay").classList.add("open");
+};
+window.p_closeDelModal=function(){G("p_delOverlay").classList.remove("open");};
+window.p_confirmDelete=function(){
+  if(!_delKey)return;
+  db.ref(FB+"/"+_delKey).remove()
+    .then(()=>{delete _ch[_delKey];window.p_closeDelModal();window.p_onFilterChange();showToast("ลบเรียบร้อย");})
+    .catch(()=>showToast("ลบไม่สำเร็จ","err"));
+};
+
+/* ══ EXPORT ══ */
+window.p_exportCSV=function(){
+  const entries=Object.entries(_ch).filter(([,c])=>c.name?.trim());
+  if(!entries.length){showToast("ไม่มีข้อมูล","warn");return;}
+  const header=["ชื่อ-สกุล","วันเกิด","เพศ","HN","โรงเรียน","ตำบล","หมู่","โรคประจำตัว","แพ้ยา","หมายเหตุ",...VK.map(v=>PV[v].label)];
+  const rows=entries.map(([,c])=>[c.name||"",c.birth||"",c.gender||"",c.hn||"",c.school||"",
+    TM[c.tambon]||c.tambon||"",c.village||"",c.disease||"",c.allergy||"",c.note||"",
+    ...VK.map(v=>c.vaccines?.[v]?"ฉีดแล้ว":"ยังไม่ฉีด")]);
+  const csv="\uFEFF"+[header,...rows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
+  a.download=`vaxkolok_primary_${new Date().toISOString().slice(0,10)}.csv`;a.click();
+  showToast(`ส่งออก ${entries.length} รายการ`);
+};
+
+/* ══ IMPORT ══ */
+window.p_openImport=function(){
+  _impRows=[];window.p_goImportStep(1);G("p_fileInput").value="";G("p_importOverlay").classList.add("open");
+};
+window.p_closeImport=function(){G("p_importOverlay").classList.remove("open");};
+window.p_goImportStep=function(n){
+  [1,2,3].forEach(i=>{
+    G("p_import_step"+i).style.display=i===n?"":"none";
+    const s=G("p_istep_"+i);s.className="istep"+(i===n?" active":i<n?" done":"");
+  });
+  G("p_importConfirmBtn").style.display=n===2?"":"none";
+};
+window.p_handleDrop=function(e){
+  e.preventDefault();G("p_dropZone").classList.remove("drag");
+  const f=e.dataTransfer.files[0];if(f)window.p_handleFileSelect(f);
+};
+window.p_handleFileSelect=function(file){
+  if(!file)return;
+  const ext=file.name.split(".").pop().toLowerCase();
+  if(ext==="json"){
+    const r=new FileReader();r.onload=e=>parseJSON(e.target.result);r.readAsText(file,"UTF-8");
+  }else if(ext==="csv"){
+    const r=new FileReader();r.onload=e=>parseCSV(e.target.result);r.readAsText(file,"UTF-8");
+  }else if(ext==="xlsx"||ext==="xls"){
+    showToast("Excel: กรุณาบันทึกเป็น .csv ก่อนนำเข้า หรือใช้ไฟล์ .json","warn");
+  }else{
+    showToast("รองรับ .csv .json เท่านั้น","err");
+  }
+};
+
+function splitCSV(line){
+  const out=[];let cur="",inQ=false;
+  for(let i=0;i<line.length;i++){
+    const ch=line[i];
+    if(ch==='"'){if(inQ&&line[i+1]==='"'){cur+='"';i++;}else inQ=!inQ;}
+    else if(ch===","&&!inQ){out.push(cur);cur="";}
+    else cur+=ch;
+  }
+  out.push(cur);return out;
+}
+const COL={
+  "ชื่อ-สกุล":"name","ชื่อสกุล":"name","name":"name","ชื่อ":"firstname","สกุล":"lastname",
+  "วันเกิด":"birth","birth":"birth","เพศ":"gender","gender":"gender",
+  "hn":"hn","HN":"hn","รหัส":"hn",
+  "โรงเรียน":"school","school":"school",
+  "ตำบล":"tambon","tambon":"tambon","หมู่":"village","หมู่บ้าน":"village","village":"village",
+  "โรคประจำตัว":"disease","disease":"disease","โรค":"disease",
+  "แพ้ยา":"allergy","allergy":"allergy","ประวัติแพ้ยา":"allergy",
+  "หมายเหตุ":"note","note":"note",
+  "dtp5":"DTP5","DTP5":"DTP5","opv5":"OPV5","OPV5":"OPV5",
+  "dt":"dT","dT":"dT","hpv1":"HPV1","HPV1":"HPV1","hpv2":"HPV2","HPV2":"HPV2",
+};
+function parseBirth(s){
+  if(!s)return"";
+  const m1=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const m2=s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+  const m3=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(m1)return`${+m1[3]>2500?m1[3]-543:m1[3]}-${m1[2].padStart(2,"0")}-${m1[1].padStart(2,"0")}`;
+  if(m2)return`${+m2[3]>2500?m2[3]-543:m2[3]}-${m2[2].padStart(2,"0")}-${m2[1].padStart(2,"0")}`;
+  if(m3)return`${+m3[1]>2500?m3[1]-543:m3[1]}-${m3[2]}-${m3[3]}`;
+  return s;
+}
+function rowToRecord(row){
+  let name=row["name"]||"";
+  if(!name&&row["firstname"])name=(row["firstname"]+" "+(row["lastname"]||"")).trim();
+  if(!name)return null;
+  const vaccines={};
+  VK.forEach(v=>{const val=(row[v]||"").toLowerCase();vaccines[v]=["ฉีดแล้ว","yes","1","true","✓","v"].includes(val);});
+  return{name,birth:parseBirth(row["birth"]||""),gender:row["gender"]||"",
+    hn:row["hn"]||"",school:row["school"]||"",tambon:normTambon(row["tambon"]||""),
+    village:row["village"]||"",disease:row["disease"]||"",allergy:row["allergy"]||"",
+    note:row["note"]||"",vaccines};
+}
+function parseCSV(text){
+  if(text.charCodeAt(0)===0xFEFF)text=text.slice(1);
+  const lines=text.split(/\r?\n/).filter(l=>l.trim());
+  if(lines.length<2){showToast("ไฟล์ไม่มีข้อมูล","err");return;}
+  const rawH=splitCSV(lines[0]).map(h=>h.trim());
+  const headers=rawH.map(h=>COL[h]||COL[h.toLowerCase()]||h.toLowerCase());
+  _impRows=[];
+  for(let i=1;i<lines.length;i++){
+    const cols=splitCSV(lines[i]);const row={};
+    headers.forEach((h,idx)=>row[h]=(cols[idx]||"").trim());
+    const rec=rowToRecord(row);if(rec)_impRows.push(rec);
+  }
+  showImportPreview();
+}
+function parseJSON(text){
+  try{
+    const arr=JSON.parse(text);
+    if(!Array.isArray(arr)){showToast("JSON ต้องเป็น array","err");return;}
+    _impRows=arr.map(obj=>{
+      const row={};
+      Object.entries(obj).forEach(([k,v])=>{row[COL[k]||COL[k.toLowerCase()]||k.toLowerCase()]=String(v||"");});
+      return rowToRecord(row);
+    }).filter(Boolean);
+    showImportPreview();
+  }catch(e){showToast("JSON ไม่ถูกต้อง","err");}
+}
+function showImportPreview(){
+  if(!_impRows.length){showToast("ไม่พบข้อมูลที่ถูกต้อง","err");return;}
+  const preview=_impRows.slice(0,5);
+  G("p_importSummary").innerHTML=`พบ <strong>${_impRows.length}</strong> รายการ`;
+  G("p_importCount").textContent=_impRows.length;
+  G("p_importPreviewTable").innerHTML=`
+    <tr><th>#</th><th>ชื่อ-สกุล</th><th>วันเกิด</th><th>เพศ</th><th>โรงเรียน</th><th>โรค</th><th>แพ้ยา</th>${VK.map(v=>`<th>${PV[v].label}</th>`).join("")}</tr>
+    ${preview.map((r,i)=>`<tr>
+      <td>${i+1}</td><td style="font-weight:700">${r.name}</td><td>${fmtDate(r.birth)}</td>
+      <td>${r.gender||"—"}</td><td>${r.school||"—"}</td>
+      <td>${r.disease||"—"}</td><td>${r.allergy||"—"}</td>
+      ${VK.map(v=>`<td style="text-align:center">${r.vaccines[v]?'<span style="color:var(--green)">✓</span>':'<span style="color:#d1d5db">✗</span>'}</td>`).join("")}
+    </tr>`).join("")}`;
+  G("p_importNote").textContent=_impRows.length>5?`... และอีก ${_impRows.length-5} รายการ`:"";
+  window.p_goImportStep(2);
+}
+window.p_confirmImport=async function(){
+  const btn=G("p_importConfirmBtn");btn.disabled=true;btn.innerHTML='<i class="fa fa-spinner fa-spin"></i> กำลังนำเข้า…';
+  let ok=0,fail=0;
+  for(const row of _impRows){
+    const rec={...row,createdAt:new Date().toISOString()};
+    Object.keys(rec).forEach(k=>{if(rec[k]===""||rec[k]===null)delete rec[k];});
+    try{const ref=await db.ref(FB).push(rec);_ch[ref.key]=row;ok++;}catch(e){fail++;}
+  }
+  btn.disabled=false;btn.innerHTML='<i class="fa fa-file-import"></i> นำเข้า';
+  window.p_goImportStep(3);
+  G("p_importDoneMsg").textContent=`นำเข้าสำเร็จ ${ok} รายการ`;
+  G("p_importDoneSub").textContent=fail?`ล้มเหลว ${fail} รายการ`:"นำเข้าครบถ้วน";
+  window.p_onFilterChange();showToast(`นำเข้า ${ok} รายการเรียบร้อย`);
+};
+window.p_downloadTemplate=function(){
+  const header=["ชื่อ-สกุล","วันเกิด","เพศ","HN","โรงเรียน","ตำบล","หมู่","โรคประจำตัว","แพ้ยา","หมายเหตุ",...VK.map(v=>PV[v].label)];
+  const rows=[
+    ["มูฮัมหมัดซาฟีร์ ดอเลาะ","15/06/2561","ชาย","12345","บ้านปาเสมัส","สุไหงโก-ลก","1","","","","ฉีดแล้ว","ฉีดแล้ว","","",""],
+    ["นูรีฮัน มะยีดิง","20/03/2557","หญิง","12346","ราษฎร์อุทิศ","มูโนะ","2","เบาหวาน","เพนิซิลลิน","","ฉีดแล้ว","ฉีดแล้ว","ฉีดแล้ว","ฉีดแล้ว",""],
+  ];
+  const csv="\uFEFF"+[header,...rows].map(r=>r.map(v=>`"${v}"`).join(",")).join("\n");
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
+  a.download="vaxkolok_primary_template.csv";a.click();
+};
+
+/* ══ INIT ══ */
+G("p_todayText").textContent=new Date().toLocaleDateString("th-TH",{year:"numeric",month:"long",day:"numeric"});
+db.ref(FB).on("value",snap=>{
+  _ch={};const raw=snap.val()||{};
+  Object.entries(raw).forEach(([k,v])=>{if(v?.name?.trim())_ch[k]=v;});
+  G("p_updateTime").textContent="อัปเดต "+new Date().toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"});
+  renderGradePills();window.p_onFilterChange();
+});
+})();
+</script>
+</body>
+</html>

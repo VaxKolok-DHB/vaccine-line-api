@@ -1,0 +1,8 @@
+{
+  "projects": {
+    "firebase use --add": "vaccine-dashboard-bc687",
+    "default": "vaccine-dashboard-bc687"
+  },
+  "targets": {},
+  "etags": {}
+}
