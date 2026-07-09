@@ -1,10 +1,10 @@
-const Anthropic = require("@anthropic-ai/sdk");
+const OpenAI = require("openai");
 const { getKnowledgeBase } = require("./knowledgeBase");
 
 // หมายเหตุ: server.js หลักเรียก require("dotenv").config() ไว้แล้วตั้งแต่บรรทัดบนสุด
 // ทำให้ process.env มีค่าพร้อมใช้ในไฟล์นี้โดยไม่ต้อง config() ซ้ำ
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const MODEL = process.env.CLAUDE_MODEL || "claude-haiku-4-5-20251001";
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
 const SYSTEM_PROMPT_TEMPLATE = (kb) => `คุณคือแชทบอทตอบคำถามเรื่อง "วัคซีน" บน LINE ของระบบ VaxKolok (หน่วยงานสาธารณสุข)
 หน้าที่ของคุณคือตอบคำถามผู้ใช้โดยอ้างอิงจาก "ฐานความรู้" ด้านล่างเท่านั้น
@@ -24,30 +24,32 @@ ${kb}
 ===== จบฐานความรู้ =====`;
 
 /**
- * ส่งคำถามผู้ใช้ไปให้ Claude ตอบ โดยอิงจากฐานความรู้เรื่องวัคซีน
+ * ส่งคำถามผู้ใช้ไปให้ ChatGPT (OpenAI) ตอบ โดยอิงจากฐานความรู้เรื่องวัคซีน
  * @param {string} userMessage ข้อความจากผู้ใช้ LINE
  * @returns {Promise<string>} คำตอบที่จะส่งกลับ
  */
 async function answerQuestion(userMessage) {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.error("[ai/answer] ไม่ได้ตั้งค่า ANTHROPIC_API_KEY");
+  if (!process.env.OPENAI_API_KEY) {
+    console.error("[ai/answer] ไม่ได้ตั้งค่า OPENAI_API_KEY");
     return "ขออภัยครับ/ค่ะ ระบบตอบคำถามยังไม่พร้อมใช้งาน กรุณาติดต่อเจ้าหน้าที่ หรือพิมพ์ ลงทะเบียน [HN] เพื่อใช้ระบบติดตามวัคซีน";
   }
 
   const kb = getKnowledgeBase();
 
   try {
-    const response = await client.messages.create({
+    const response = await client.chat.completions.create({
       model: MODEL,
       max_tokens: 700,
-      system: SYSTEM_PROMPT_TEMPLATE(kb),
-      messages: [{ role: "user", content: userMessage }],
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT_TEMPLATE(kb) },
+        { role: "user", content: userMessage },
+      ],
     });
 
-    const textBlock = response.content.find((block) => block.type === "text");
-    return textBlock ? textBlock.text.trim() : "ขออภัยครับ/ค่ะ ตอนนี้ระบบตอบคำถามขัดข้อง กรุณาลองใหม่อีกครั้ง";
+    const answer = response.choices?.[0]?.message?.content?.trim();
+    return answer || "ขออภัยครับ/ค่ะ ตอนนี้ระบบตอบคำถามขัดข้อง กรุณาลองใหม่อีกครั้ง";
   } catch (err) {
-    console.error("[ai/answer] เรียก Anthropic API ไม่สำเร็จ:", err.message);
+    console.error("[ai/answer] เรียก OpenAI API ไม่สำเร็จ:", err.message);
     return "ขออภัยครับ/ค่ะ ระบบตอบคำถามขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งในภายหลัง หรือติดต่อเจ้าหน้าที่โดยตรง";
   }
 }
