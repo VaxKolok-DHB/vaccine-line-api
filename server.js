@@ -5,21 +5,38 @@ require("dotenv").config();
 const express = require("express");
 const axios   = require("axios");
 const cors    = require("cors");
+const cron    = require("node-cron");
+const { answerQuestion } = require("./ai/answer");
 const app     = express();
 
-app.use(cors({ origin: "*", methods: ["GET","POST","OPTIONS"], allowedHeaders: ["Content-Type"] }));
+app.use(cors({ origin: "*", methods: ["GET","POST","OPTIONS"], allowedHeaders: ["Content-Type","x-api-key"] }));
 app.use(express.json());
 
 // =====================
 // CONFIG
 // =====================
-const TOKEN = process.env.LINE_TOKEN || "DIK8oggf4sTTqeGzpc+PnWOX/4g+rGQOt4x/E7+b7uxOT0nSQcpU/O8to6IZgIOAzRpfGzesWr5Gh+P0EAH6gTKJ+lhqyOIVGOgS+o9cY3S3h6+l0vY1sMQ0hmZDKOaNu6zkfaYL+4unZLnjWLJBdgdB04t89/1O/w1cDnyilFU=";
+// ⚠️ ความปลอดภัย: เดิมไฟล์นี้มี Channel access token ฝังตรง ๆ เป็นค่า default อยู่ในซอร์สโค้ด
+// ซึ่งถือว่ารั่วไหลแล้วเพราะโค้ดถูกแชร์ออกมา ให้ไปออกโทเค็นใหม่ที่ LINE Developers Console
+// (แท็บ Messaging API > Channel access token > Issue) แล้วตั้งเป็น environment variable เท่านั้น
+// ห้ามฝังค่า default ไว้ในซอร์สโค้ดอีก
+const TOKEN = process.env.LINE_TOKEN;
+if (!TOKEN) {
+  console.error("❌ ไม่ได้ตั้งค่า LINE_TOKEN ใน environment variables — บอทจะส่ง/ตอบข้อความ LINE ไม่ได้จนกว่าจะตั้งค่า");
+}
+
 const DB    = process.env.DB_URL || "https://vaccine-dashboard-bc687-default-rtdb.firebaseio.com";
 
 const MAX_NORMAL      = 5;
 const MAX_STEP        = 5;
 const REMINDER_DELAY  = parseInt(process.env.REMINDER_DELAY)  || 30 * 60 * 1000; // ✅ เตือนซ้ำทุก 30 นาที
 const MAX_REMIND_COUNT= parseInt(process.env.MAX_REMIND_COUNT) || 2;              // ✅ เตือนซ้ำสูงสุด 2 ครั้ง
+
+// ✅ คีย์ลับสำหรับให้ "เว็บไซต์" เรียก API มาสั่งส่งแจ้งเตือนเข้า LINE (ดูจุด /api/notify ด้านล่าง)
+const NOTIFY_API_KEY = process.env.NOTIFY_API_KEY || "";
+
+// ✅ ตั้งเวลาส่งประกาศ/แจ้งเตือนทั่วไปอัตโนมัติ (ไม่บังคับ, คนละส่วนกับระบบติดตามอาการรายบุคคลด้านล่าง)
+const ANNOUNCE_CRON    = process.env.ANNOUNCE_CRON    || "";
+const ANNOUNCE_MESSAGE = process.env.ANNOUNCE_MESSAGE || "";
 
 // =====================
 // Helpers
@@ -125,6 +142,34 @@ async function pushMessages(userId, messages) {
   }
 }
 
+// ✅ ใหม่: ส่งข้อความหา "เพื่อน" ของ LINE OA ทุกคน (ใช้กับ /api/notify ที่เว็บไซต์เรียกเข้ามา)
+async function broadcast(text) {
+  try {
+    const r = await axios.post(
+      "https://api.line.me/v2/bot/message/broadcast",
+      { messages: [{ type: "text", text }] },
+      { headers: LINE_HEADERS() }
+    );
+    console.log("✅ broadcast OK:", r.status);
+    return true;
+  } catch (err) {
+    console.error("broadcast error:", err.response?.data || err.message);
+    return false;
+  }
+}
+
+// ✅ ใหม่: ส่งข้อความหาผู้ปกครองทุกคนที่เคยลงทะเบียน HN ไว้แล้ว (ดึงจาก Firebase children ที่มี lineUserId)
+async function pushToAllRegistered(text) {
+  const children = (await fbGet("children")) || {};
+  const ids = [...new Set(Object.values(children).map((c) => c.lineUserId).filter(Boolean))];
+  let success = 0;
+  for (const id of ids) {
+    const ok = await push(id, text);
+    if (ok) success++;
+  }
+  return { total: ids.length, success };
+}
+
 // =====================
 // คำนวณระดับอาการ
 // =====================
@@ -181,7 +226,7 @@ async function handleEvent(e) {
 
   if (e.type === "follow") {
     await push(e.source.userId,
-      "👋 ยินดีต้อนรับสู่ระบบ VaxKolok 🏥\n\nกรุณาลงทะเบียนโดยพิมพ์:\nลงทะเบียน [HN]\n\nตัวอย่าง: ลงทะเบียน 12345"
+      "👋 ยินดีต้อนรับสู่ระบบ VaxKolok 🏥\n\nพิมพ์คำถามเรื่องวัคซีนได้เลย หรือลงทะเบียนติดตามอาการหลังฉีดวัคซีนโดยพิมพ์:\nลงทะเบียน [HN]\n\nตัวอย่าง: ลงทะเบียน 12345"
     );
     return;
   }
@@ -464,11 +509,17 @@ async function handleEvent(e) {
   }
 
   // ================================================================
-  // Default
+  // Default → ให้ AI ตอบคำถามทั่วไปเรื่องวัคซีนจากฐานความรู้ (ของใหม่)
   // ================================================================
-  await reply(e.replyToken,
-    "ยินดีต้อนรับสู่ระบบ VaxKolok 🏥\n\nพิมพ์:\nลงทะเบียน [HN]\n\nตัวอย่าง: ลงทะเบียน 12345"
-  );
+  try {
+    const answer = await answerQuestion(text);
+    await reply(e.replyToken, answer);
+  } catch (err) {
+    console.error("AI answer error:", err.message);
+    await reply(e.replyToken,
+      "ยินดีต้อนรับสู่ระบบ VaxKolok 🏥\n\nพิมพ์:\nลงทะเบียน [HN]\n\nตัวอย่าง: ลงทะเบียน 12345"
+    );
+  }
 }
 
 // =====================
@@ -623,6 +674,67 @@ app.post("/api/resend-followup", async (req, res) => {
 });
 
 // =====================
+// POST /api/notify — ให้ "เว็บไซต์" เรียกมาสั่งส่งแจ้งเตือนเข้า LINE (ของใหม่)
+// =====================
+// ตัวอย่างเรียกจากเว็บไซต์:
+// fetch('https://<โดเมนของคุณ>/api/notify', {
+//   method: 'POST',
+//   headers: { 'Content-Type': 'application/json', 'x-api-key': 'ค่า NOTIFY_API_KEY' },
+//   body: JSON.stringify({ message: 'ข้อความ', mode: 'broadcast' })
+// })
+app.post("/api/notify", async (req, res) => {
+  const apiKey = req.header("x-api-key");
+  if (!NOTIFY_API_KEY || apiKey !== NOTIFY_API_KEY) {
+    return res.status(401).json({ ok: false, message: "unauthorized: x-api-key ไม่ถูกต้องหรือยังไม่ได้ตั้งค่า NOTIFY_API_KEY" });
+  }
+
+  const { message, mode = "broadcast", userId } = req.body || {};
+  if (!message || typeof message !== "string") {
+    return res.status(400).json({ ok: false, message: "ต้องระบุ message เป็นข้อความ" });
+  }
+
+  try {
+    if (mode === "push" && userId) {
+      const ok = await push(userId, message);
+      return res.json({ ok, mode: "push", to: userId });
+    }
+
+    if (mode === "registered") {
+      // ส่งหาเฉพาะผู้ปกครองที่เคยลงทะเบียน HN ไว้กับระบบแล้วเท่านั้น (ดึงจาก Firebase)
+      const result = await pushToAllRegistered(message);
+      return res.json({ ok: true, mode: "registered", ...result });
+    }
+
+    // ค่าเริ่มต้น: ส่งหาเพื่อนของ LINE OA ทุกคน
+    const ok = await broadcast(message);
+    return res.json({ ok, mode: "broadcast" });
+  } catch (err) {
+    console.error("[api/notify]", err.message);
+    return res.status(500).json({ ok: false, message: "ส่งข้อความไม่สำเร็จ กรุณาตรวจสอบ LINE_TOKEN" });
+  }
+});
+
+// =====================
+// ตั้งเวลาส่งประกาศอัตโนมัติ (ไม่บังคับ, ของใหม่)
+// =====================
+function startAnnouncementScheduler() {
+  if (!ANNOUNCE_CRON || !ANNOUNCE_MESSAGE) {
+    console.log("[scheduler] ไม่ได้ตั้งค่า ANNOUNCE_CRON/ANNOUNCE_MESSAGE จึงไม่เปิดระบบประกาศอัตโนมัติ");
+    return;
+  }
+  if (!cron.validate(ANNOUNCE_CRON)) {
+    console.error(`[scheduler] รูปแบบ cron ไม่ถูกต้อง: "${ANNOUNCE_CRON}"`);
+    return;
+  }
+  cron.schedule(ANNOUNCE_CRON, async () => {
+    console.log("[scheduler] กำลังส่งประกาศอัตโนมัติ...");
+    const ok = await broadcast(ANNOUNCE_MESSAGE);
+    console.log(ok ? "[scheduler] ส่งสำเร็จ" : "[scheduler] ส่งไม่สำเร็จ");
+  });
+  console.log(`[scheduler] ตั้งเวลาประกาศอัตโนมัติแล้ว: "${ANNOUNCE_CRON}"`);
+}
+
+// =====================
 // Health Check
 // =====================
 app.get("/health", (req, res) => res.json({
@@ -645,4 +757,5 @@ app.listen(PORT, () => {
   console.log(`⏱ Auto follow-up: ทุก 1 นาที`);
   console.log(`🔔 เตือนซ้ำ: ทุก ${REMINDER_DELAY/60000} นาที, สูงสุด ${MAX_REMIND_COUNT} ครั้ง`);
   setInterval(autoFollowUp, 60 * 1000);
+  startAnnouncementScheduler();
 });
