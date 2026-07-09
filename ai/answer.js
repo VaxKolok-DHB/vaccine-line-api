@@ -1,57 +1,54 @@
-const OpenAI = require("openai");
-const { getKnowledgeBase } = require("./knowledgeBase");
+const { search } = require("./kbSearch");
 
-// หมายเหตุ: server.js หลักเรียก require("dotenv").config() ไว้แล้วตั้งแต่บรรทัดบนสุด
-// ทำให้ process.env มีค่าพร้อมใช้ในไฟล์นี้โดยไม่ต้อง config() ซ้ำ
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
+// หมายเหตุ: ระบบนี้ไม่ใช้ AI/บริการภายนอกใด ๆ แล้ว
+// ตอบคำถามด้วยการค้นหาข้อความที่ใกล้เคียงที่สุดจาก knowledge-base.md เท่านั้น
+// ไม่มีค่าใช้จ่าย ไม่ต้องมี API key
 
-const SYSTEM_PROMPT_TEMPLATE = (kb) => `คุณคือแชทบอทตอบคำถามเรื่อง "วัคซีน" บน LINE ของระบบ VaxKolok (หน่วยงานสาธารณสุข)
-หน้าที่ของคุณคือตอบคำถามผู้ใช้โดยอ้างอิงจาก "ฐานความรู้" ด้านล่างเท่านั้น
+const GREETING_REGEX = /^(สวัสดี|หวัดดี|hi|hello)/i;
 
-กติกาการตอบ:
-1. ตอบเป็นภาษาไทย กระชับ เข้าใจง่าย เหมาะกับการอ่านบนมือถือ (ควรสั้นกว่า 12 บรรทัด ถ้าเนื้อหายาวให้สรุปประเด็นสำคัญ แล้วชวนถามเพิ่มได้)
-2. ใช้เฉพาะข้อมูลจากฐานความรู้ที่ให้มา ห้ามเดาหรือแต่งข้อมูลทางการแพทย์ขึ้นเอง
-3. ถ้าคำถามไม่มีอยู่ในฐานความรู้ หรือไม่มั่นใจ ให้ตอบตามตรงว่าไม่มีข้อมูลในส่วนนี้ และแนะนำให้ผู้ใช้ปรึกษาแพทย์/เจ้าหน้าที่สาธารณสุข อย่ากุคำตอบ
-4. หากเป็นคำถามเชิงอาการเฉพาะบุคคล (เช่น "ลูกฉีดแล้วมีอาการนี้ อันตรายไหม") ให้ตอบตามข้อมูลทั่วไปในฐานความรู้ แล้วปิดท้ายด้วยคำแนะนำให้พบแพทย์หากอาการรุนแรง/น่ากังวล
-5. ไม่ต้องอ้างเลขข้อ/หมวดของเอกสารต้นฉบับ ให้ตอบด้วยภาษาพูดธรรมชาติ แนบลิงก์อ้างอิงได้ถ้ามีและเกี่ยวข้องโดยตรง (สูงสุด 1 ลิงก์)
-6. ทักทายสุภาพเมื่อผู้ใช้ทักทาย/พิมพ์ "สวัสดี"
-7. ห้ามให้คำวินิจฉัยโรค ห้ามสั่งจ่ายยาหรือขนาดยานอกเหนือจากที่ระบุในฐานความรู้
-8. ถ้าผู้ใช้ถามวิธี "ลงทะเบียนติดตามอาการหลังฉีดวัคซีน" กับระบบนี้ ให้แนะนำว่าพิมพ์ "ลงทะเบียน " ตามด้วยหมายเลข HN เช่น "ลงทะเบียน 12345"
+const GREETING_REPLY =
+  "สวัสดีค่ะ/ครับ 🙏 ระบบ VaxKolok ยินดีให้บริการ\n\n" +
+  'พิมพ์คำถามเรื่องวัคซีนได้เลย เช่น "ลูกฉีดวัคซีนแล้วมีไข้ทำอย่างไร"\n\n' +
+  'หรือพิมพ์ "ลงทะเบียน [HN]" เพื่อใช้ระบบติดตามอาการหลังฉีดวัคซีน เช่น ลงทะเบียน 12345';
 
-===== ฐานความรู้ =====
-${kb}
-===== จบฐานความรู้ =====`;
+const NOT_FOUND_REPLY =
+  "ขออภัยครับ/ค่ะ ยังไม่มีข้อมูลเรื่องนี้ในฐานข้อมูลของระบบ\n" +
+  "แนะนำให้ปรึกษาแพทย์หรือเจ้าหน้าที่สาธารณสุขใกล้บ้านสำหรับคำถามนี้โดยตรง\n\n" +
+  'หรือลองพิมพ์คำถามให้ตรงประเด็นมากขึ้น เช่น "วัคซีนบาดทะยักฉีดกี่เข็ม"';
+
+function formatAnswer(entry) {
+  const lines = entry.body.split("\n").map((l) => l.trim());
+  const refLine = lines.find((l) => l.startsWith("อ้างอิง"));
+  const bodyLines = lines.filter((l) => l && !l.startsWith("อ้างอิง"));
+  let text = bodyLines.join("\n");
+  if (refLine) {
+    text += `\n\n${refLine}`;
+  }
+  return text;
+}
 
 /**
- * ส่งคำถามผู้ใช้ไปให้ ChatGPT (OpenAI) ตอบ โดยอิงจากฐานความรู้เรื่องวัคซีน
+ * ตอบคำถามผู้ใช้โดยค้นจากฐานความรู้เรื่องวัคซีน (ไม่ใช้ AI)
  * @param {string} userMessage ข้อความจากผู้ใช้ LINE
  * @returns {Promise<string>} คำตอบที่จะส่งกลับ
  */
 async function answerQuestion(userMessage) {
-  if (!process.env.OPENAI_API_KEY) {
-    console.error("[ai/answer] ไม่ได้ตั้งค่า OPENAI_API_KEY");
-    return "ขออภัยครับ/ค่ะ ระบบตอบคำถามยังไม่พร้อมใช้งาน กรุณาติดต่อเจ้าหน้าที่ หรือพิมพ์ ลงทะเบียน [HN] เพื่อใช้ระบบติดตามวัคซีน";
+  const text = (userMessage || "").trim();
+
+  if (!text) {
+    return NOT_FOUND_REPLY;
   }
 
-  const kb = getKnowledgeBase();
-
-  try {
-    const response = await client.chat.completions.create({
-      model: MODEL,
-      max_tokens: 700,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT_TEMPLATE(kb) },
-        { role: "user", content: userMessage },
-      ],
-    });
-
-    const answer = response.choices?.[0]?.message?.content?.trim();
-    return answer || "ขออภัยครับ/ค่ะ ตอนนี้ระบบตอบคำถามขัดข้อง กรุณาลองใหม่อีกครั้ง";
-  } catch (err) {
-    console.error("[ai/answer] เรียก OpenAI API ไม่สำเร็จ:", err.message);
-    return "ขออภัยครับ/ค่ะ ระบบตอบคำถามขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งในภายหลัง หรือติดต่อเจ้าหน้าที่โดยตรง";
+  if (GREETING_REGEX.test(text)) {
+    return GREETING_REPLY;
   }
+
+  const match = search(text);
+  if (match) {
+    return formatAnswer(match);
+  }
+
+  return NOT_FOUND_REPLY;
 }
 
 module.exports = { answerQuestion };

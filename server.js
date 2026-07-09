@@ -19,7 +19,11 @@ app.use(express.json());
 // ซึ่งถือว่ารั่วไหลแล้วเพราะโค้ดถูกแชร์ออกมา ให้ไปออกโทเค็นใหม่ที่ LINE Developers Console
 // (แท็บ Messaging API > Channel access token > Issue) แล้วตั้งเป็น environment variable เท่านั้น
 // ห้ามฝังค่า default ไว้ในซอร์สโค้ดอีก
-const TOKEN = process.env.LINE_TOKEN || "DIK8oggf4sTTqeGzpc+PnWOX/4g+rGQOt4x/E7+b7uxOT0nSQcpU/O8to6IZgIOAzRpfGzesWr5Gh+P0EAH6gTKJ+lhqyOIVGOgS+o9cY3S3h6+l0vY1sMQ0hmZDKOaNu6zkfaYL+4unZLnjWLJBdgdB04t89/1O/w1cDnyilFU=";
+const TOKEN = process.env.LINE_TOKEN;
+if (!TOKEN) {
+  console.error("❌ ไม่ได้ตั้งค่า LINE_TOKEN ใน environment variables — บอทจะส่ง/ตอบข้อความ LINE ไม่ได้จนกว่าจะตั้งค่า");
+}
+
 const DB    = process.env.DB_URL || "https://vaccine-dashboard-bc687-default-rtdb.firebaseio.com";
 
 const MAX_NORMAL      = 5;
