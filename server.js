@@ -5,7 +5,7 @@ require("dotenv").config();
 const express = require("express");
 const axios   = require("axios");
 const cors    = require("cors");
-const { answerQuestion } = require("./Answer");
+const { answerQuestion } = require("./answer");
 const app     = express();
 
 app.use(cors({ origin: "*", methods: ["GET","POST","OPTIONS"], allowedHeaders: ["Content-Type"] }));
