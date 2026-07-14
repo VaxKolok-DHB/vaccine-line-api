@@ -238,8 +238,35 @@ async function handleEvent(e) {
         hn, childKey: child.key, requireName: false, createdAt: Date.now(),
       });
     } else {
-      await reply(e.replyToken,
-        `⚠️ HN ${hn} มีหลายรายการ\nกรุณายืนยันตัวตนโดยพิมพ์:\n\nยืนยัน ${hn} ชื่อ-นามสกุล`
+      // ✅ HN ซ้ำหลายรายการ: ให้เลือกจากปุ่ม (quick reply) แทนการพิมพ์ยืนยันชื่อเอง
+      // ตัดเหลือ 12 รายการแรก (LINE จำกัด quick reply ไม่เกิน 13 ปุ่ม เผื่อ 1 ปุ่มไว้ยกเลิก)
+      const list = matches.slice(0, 12);
+      const listText = list
+        .map((c, i) => {
+          const cidDigits = String(c.cid || "").replace(/\D/g, "");
+          const cidLabel  = cidDigits ? ` (เลขบัตร ปชช. ...${cidDigits.slice(-4)})` : "";
+          return `${i + 1}. ${c.name || "ไม่ระบุชื่อ"}${cidLabel}`;
+        })
+        .join("\n");
+      const moreNote = matches.length > list.length
+        ? `\n\n(แสดง ${list.length} จาก ${matches.length} รายการ หากไม่พบชื่อที่ต้องการ กรุณาติดต่อเจ้าหน้าที่)`
+        : "";
+
+      const items = list.map((c, i) => ({
+        type: "action",
+        action: { type: "message", label: `เลือกที่ ${i + 1}`, text: `__confirm__${hn}__${c.key}` }
+      }));
+      items.push({ type: "action", action: { type: "message", label: "❌ ยกเลิก", text: "__cancel__" } });
+
+      const msg = {
+        type: "text",
+        text: `⚠️ HN ${hn} มีหลายรายการ (${matches.length} รายการ)\nกรุณาเลือกรายการที่ถูกต้อง:\n\n${listText}${moreNote}`,
+        quickReply: { items }
+      };
+      await axios.post(
+        "https://api.line.me/v2/bot/message/reply",
+        { replyToken: e.replyToken, messages: [msg] },
+        { headers: LINE_HEADERS() }
       );
       await fbSet(`pendingRegister/${userId}`, { hn, requireName: true, createdAt: Date.now() });
     }
@@ -474,8 +501,8 @@ async function handleEvent(e) {
   if (pending && pending.requireName) {
     await reply(e.replyToken,
       `⚠️ ยังไม่ได้ยืนยันตัวตนสำหรับ HN ${pending.hn}\n\n` +
-      `กรุณาพิมพ์ตามรูปแบบนี้เท่านั้น:\nยืนยัน ${pending.hn} ชื่อ-นามสกุล\n\n` +
-      `ตัวอย่าง: ยืนยัน ${pending.hn} ด.ช.เอ บี\n\n` +
+      `กรุณากดปุ่ม "เลือกที่ ..." จากข้อความก่อนหน้านี้\n` +
+      `หรือพิมพ์: ยืนยัน ${pending.hn} ชื่อ-นามสกุล\n\n` +
       `หรือพิมพ์ __cancel__ เพื่อยกเลิก`
     );
     return;
