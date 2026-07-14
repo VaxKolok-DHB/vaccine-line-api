@@ -244,7 +244,7 @@ async function handleEvent(e) {
       const listText = list
         .map((c, i) => {
           const cidDigits = String(c.cid || "").replace(/\D/g, "");
-          const cidLabel  = cidDigits ? ` (เลขบัตร ปชช. ...${cidDigits.slice(-4)})` : "";
+          const cidLabel  = cidDigits ? ` (เลขบัตรปชช...${cidDigits.slice(-4)})` : "";
           return `${i + 1}. ${c.name || "ไม่ระบุชื่อ"}${cidLabel}`;
         })
         .join("\n");
