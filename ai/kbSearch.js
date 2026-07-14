@@ -33,20 +33,16 @@ function normalize(str) {
     .toLowerCase();
 }
 
-// ภาษาไทยไม่มีช่องว่างคั่นคำ จึงใช้ character trigram (3 ตัวอักษร) แทนการตัดคำ
-// (ทดสอบแล้วว่า trigram แยกแยะคำถามที่ไม่เกี่ยวข้องได้แม่นยำกว่า bigram
-// เพราะ bigram สั้นเกินไป ทำให้คำถามคนละเรื่องกันบังเอิญคะแนนสูงได้ง่าย)
-const NGRAM_SIZE = 3;
-
-function ngramCounts(str) {
+// ภาษาไทยไม่มีช่องว่างคั่นคำ จึงใช้ character bigram แทนการตัดคำ
+function bigramCounts(str) {
   const counts = new Map();
   const s = normalize(str);
-  if (s.length < NGRAM_SIZE) {
-    if (s.length > 0) counts.set(s, 1);
+  if (s.length < 2) {
+    if (s.length === 1) counts.set(s, 1);
     return counts;
   }
-  for (let i = 0; i <= s.length - NGRAM_SIZE; i++) {
-    const g = s.slice(i, i + NGRAM_SIZE);
+  for (let i = 0; i < s.length - 1; i++) {
+    const g = s.slice(i, i + 2);
     counts.set(g, (counts.get(g) || 0) + 1);
   }
   return counts;
@@ -54,11 +50,9 @@ function ngramCounts(str) {
 
 // สร้าง TF-IDF index จากทุกรายการ เพื่อลดน้ำหนัก bigram ที่พบบ่อยทั่วไป
 // (เช่น "า-ล", "ม-ี") และเพิ่มน้ำหนัก bigram ที่เจาะจงหัวข้อจริง ๆ
-// หมายเหตุ: ใช้เฉพาะ "คำถาม" ในการสร้างดัชนี ไม่รวมคำตอบ เพราะคำตอบยาวและมีคำซ้ำเยอะ
-// (เช่นคำว่า "วัคซีน" "ไข้" ซ้ำหลายรอบ) จะทำให้คะแนนความคล้ายเพี้ยนไปจากคำถามจริงของผู้ใช้
 function buildIndex(entries) {
   const N = entries.length || 1;
-  const docCounts = entries.map((e) => ngramCounts(e.question));
+  const docCounts = entries.map((e) => bigramCounts(`${e.question} ${e.body}`));
 
   const df = new Map();
   for (const counts of docCounts) {
@@ -95,7 +89,7 @@ function getIndex() {
 }
 
 function vectorize(str, idf, maxIdf) {
-  const counts = ngramCounts(str);
+  const counts = bigramCounts(str);
   const vec = new Map();
   let normSq = 0;
   for (const [gram, tf] of counts) {
@@ -124,7 +118,7 @@ function cosine(a, b) {
  * @param {number} threshold คะแนนความคล้ายขั้นต่ำที่ยอมรับ (0-1)
  * @returns {{id:string, question:string, body:string}|null}
  */
-function search(userMessage, threshold = 0.22) {
+function search(userMessage, threshold = 0.185) {
   const entries = getEntries();
   const { idf, maxIdf, vectors } = getIndex();
   const qVec = vectorize(userMessage, idf, maxIdf);
