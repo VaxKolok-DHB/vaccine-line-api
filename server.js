@@ -43,13 +43,18 @@ function getNextFollowTime(step) {
   return Date.now() + delay;
 }
 
-const SYMPTOM_QUICK_REPLY = [
-  { type: "action", action: { type: "message", label: "😊 ปกติ",          text: "อาการ: ปกติ" } },
-  { type: "action", action: { type: "message", label: "🤒 ไข้ต่ำ",         text: "อาการ: ไข้ต่ำ" } },
-  { type: "action", action: { type: "message", label: "💉 ปวด/บวมฉีดวัคซีน", text: "อาการ: ปวดหรือบวมบริเวณฉีด" } },
-  { type: "action", action: { type: "message", label: "🔥 ไข้สูง",          text: "อาการ: ไข้สูง" } },
-  { type: "action", action: { type: "message", label: "🚨 อาการรุนแรง",     text: "อาการ: รุนแรง(มีอาการชัก ยกแขนไม่ได้)" } },
-];
+// ✅ แนบ childKey ต่อท้ายด้วย "::" เพื่อให้รู้แน่ชัดว่าคำตอบนี้เป็นของเด็กคนไหน
+// (แก้ปัญหาผู้ปกครองที่มีลูกหลายคน ตอบแบบสอบถามแล้วไปอัปเดตข้อมูลของลูกคนอื่นแทน)
+function buildSymptomQuickReply(childKey) {
+  const suffix = childKey ? `::${childKey}` : "";
+  return [
+    { type: "action", action: { type: "message", label: "😊 ปกติ",          text: `อาการ: ปกติ${suffix}` } },
+    { type: "action", action: { type: "message", label: "🤒 ไข้ต่ำ",         text: `อาการ: ไข้ต่ำ${suffix}` } },
+    { type: "action", action: { type: "message", label: "💉 ปวด/บวมฉีดวัคซีน", text: `อาการ: ปวดหรือบวมบริเวณฉีด${suffix}` } },
+    { type: "action", action: { type: "message", label: "🔥 ไข้สูง",          text: `อาการ: ไข้สูง${suffix}` } },
+    { type: "action", action: { type: "message", label: "🚨 อาการรุนแรง",     text: `อาการ: รุนแรง(มีอาการชัก ยกแขนไม่ได้)${suffix}` } },
+  ];
+}
 
 // =====================
 // Firebase helpers (axios REST)
@@ -143,7 +148,7 @@ function classifySymptom(symptom) {
 // =====================
 // สร้างข้อความ Follow-up
 // =====================
-function buildFollowUpMessage(step, name, symptomText, hn) {
+function buildFollowUpMessage(step, name, symptomText, hn, childKey) {
   const periods = {
     1: "ใน 30 นาทีที่ผ่านมา",
     2: "ใน 6 ชั่วโมงที่ผ่านมา",
@@ -158,7 +163,7 @@ function buildFollowUpMessage(step, name, symptomText, hn) {
       `📋 ติดตามอาการหลังฉีดวัคซีน ${period}\n\n` +
       `👶 คุณ${name} (HN: ${hn})\n\n` +
       `กรุณาเลือกอาการล่าสุดของน้อง:`,
-    quickReply: { items: SYMPTOM_QUICK_REPLY },
+    quickReply: { items: buildSymptomQuickReply(childKey) },
   };
 }
 
@@ -244,7 +249,7 @@ async function handleEvent(e) {
       const listText = list
         .map((c, i) => {
           const cidDigits = String(c.cid || "").replace(/\D/g, "");
-          const cidLabel  = cidDigits ? ` (เลขบัตรปชช...${cidDigits.slice(-4)})` : "";
+          const cidLabel  = cidDigits ? ` (เลขบัตร ปชช. ...${cidDigits.slice(-4)})` : "";
           return `${i + 1}. ${c.name || "ไม่ระบุชื่อ"}${cidLabel}`;
         })
         .join("\n");
@@ -410,14 +415,37 @@ async function handleEvent(e) {
   // 4) รับรายงานอาการ
   // ================================================================
   if (text.startsWith("อาการ:")) {
-    const symptom = text.replace("อาการ:", "").trim();
+    let body = text.slice("อาการ:".length).trim();
 
-    const symptomsAll = await fbGet("symptoms") || {};
+    // ✅ ปุ่มตอบอาการรุ่นใหม่จะแนบ "::<childKey>" ต่อท้าย เพื่อระบุชัดเจนว่าเป็นของเด็กคนไหน
+    // (กันปัญหาผู้ปกครองที่มีลูกหลายคน ตอบแบบสอบถามแล้วไปอัปเดตข้อมูลของลูกอีกคนแทน)
+    let symptom = body, targetChildKey = null;
+    const sepIdx = body.lastIndexOf("::");
+    if (sepIdx !== -1) {
+      symptom        = body.slice(0, sepIdx).trim();
+      targetChildKey = body.slice(sepIdx + 2).trim();
+    }
+
     let childKey = null, follow = null;
-    for (const key in symptomsAll) {
-      if (symptomsAll[key].userId === userId) {
-        childKey = key; follow = symptomsAll[key]; break;
+
+    if (targetChildKey) {
+      // มีการระบุเด็กมาชัดเจนจากปุ่ม — ใช้ตัวนี้โดยตรง ไม่ต้องเดา
+      const f = await fbGet(`symptoms/${targetChildKey}`);
+      if (f) { childKey = targetChildKey; follow = f; }
+    }
+
+    if (!childKey) {
+      // ⚠️ Fallback (ข้อความเก่าที่ไม่มี childKey แนบมา หรือพิมพ์ "อาการ: ..." เอง)
+      // จะเดาจากรายการล่าสุดที่ยังไม่ปิดเคสของ userId นี้ อาจผิดคนได้ถ้ามีลูกหลายคน
+      const symptomsAll = await fbGet("symptoms") || {};
+      let latestKey = null, latestTime = -1;
+      for (const key in symptomsAll) {
+        const s = symptomsAll[key];
+        if (s.userId !== userId || s.closedAt) continue;
+        const t = s.lastAskedAt || s.updatedAt || 0;
+        if (t > latestTime) { latestTime = t; latestKey = key; }
       }
+      if (latestKey) { childKey = latestKey; follow = symptomsAll[latestKey]; }
     }
 
     if (!childKey) {
@@ -544,7 +572,7 @@ async function autoFollowUp() {
           `📋 ติดตามอาการหลังฉีดวัคซีน รอบที่ ${step}/${MAX_STEP}\n\n` +
           `👶 ${childName}\n\n` +
           `กรุณาเลือกอาการล่าสุดของเด็ก:`,
-          SYMPTOM_QUICK_REPLY
+          buildSymptomQuickReply(key)
         );
 
         if (ok) {
@@ -587,7 +615,7 @@ async function autoFollowUp() {
           `👶 ${childName}\n\n` +
           `กรุณาเลือกอาการล่าสุดของน้อง\n` +
           `(เตือนครั้งที่ ${remindCount + 1}/${MAX_REMIND_COUNT})`,
-          SYMPTOM_QUICK_REPLY
+          buildSymptomQuickReply(key)
         );
 
         if (ok) {
@@ -636,7 +664,7 @@ app.post("/api/resend-followup", async (req, res) => {
     const actualName = name || s.name || "ผู้ปกครอง";
     const actualHn   = hn   || s.hn   || "-";
 
-    const message = buildFollowUpMessage(actualStep, actualName, s.symptom || "", actualHn);
+    const message = buildFollowUpMessage(actualStep, actualName, s.symptom || "", actualHn, key);
     const ok      = await pushMessages(userId, [message]);
 
     if (!ok) {
