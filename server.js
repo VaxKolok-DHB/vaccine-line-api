@@ -21,6 +21,8 @@ const MAX_NORMAL      = 5;
 const MAX_STEP        = 5;
 const REMINDER_DELAY  = parseInt(process.env.REMINDER_DELAY)  || 30 * 60 * 1000; // ✅ เตือนซ้ำทุก 30 นาที
 const MAX_REMIND_COUNT= parseInt(process.env.MAX_REMIND_COUNT) || 2;              // ✅ เตือนซ้ำสูงสุด 2 ครั้ง
+const HOSPITAL_CONTACT_URL = process.env.HOSPITAL_CONTACT_URL || "https://vaxkolok-dhb.github.io/hospital-contact/";
+const SEVERE_SYMPTOM_TEXT  = "รุนแรง(มีอาการชัก ยกแขนไม่ได้)"; // ✅ ข้อความอาการรุนแรงต้องตรงกับปุ่มใน buildSymptomQuickReply
 
 // =====================
 // Helpers
@@ -99,6 +101,19 @@ async function replyFlex(replyToken, altText, flexContents) {
   }
 }
 
+// ✅ ตอบกลับพร้อมแนบปุ่ม quick reply (ใช้กับ flow ยืนยันอาการรุนแรง / เลือกอาการใหม่)
+async function replyQuick(replyToken, text, items) {
+  try {
+    await axios.post(
+      "https://api.line.me/v2/bot/message/reply",
+      { replyToken, messages: [{ type: "text", text, quickReply: { items } }] },
+      { headers: LINE_HEADERS() }
+    );
+  } catch (err) {
+    console.error("replyQuick error:", err.response?.data || err.message);
+  }
+}
+
 async function push(userId, text, quickReply = null) {
   try {
     const msg = { type: "text", text };
@@ -143,6 +158,43 @@ function classifySymptom(symptom) {
     level = "🔴 ต้องติดตามใกล้ชิด"; status = "ด่วน"; priority = 1;
   }
   return { level, status, priority };
+}
+
+// =====================
+// คำแนะนำการดูแลเบื้องต้นตามอาการ
+// =====================
+function buildCareAdvice(symptom) {
+  if (symptom.includes("ไข้ต่ำ")) {
+    return (
+      "🤒 การดูแลเบื้องต้นเมื่อมีไข้ต่ำ\n" +
+      "• เช็ดตัวลดไข้ด้วยน้ำอุ่น (ไม่ใช้น้ำเย็นจัด)\n" +
+      "• ให้ดื่มน้ำ/นมมากกว่าปกติ\n" +
+      "• สวมเสื้อผ้าบางเบา ไม่ห่มผ้าหนา\n" +
+      "• หากมีไข้ ให้ยาลดไข้พาราเซตามอลตามน้ำหนักตัว/คำแนะนำแพทย์\n" +
+      "• วัดไข้ซ้ำทุก 4 ชั่วโมง หากไข้ไม่ลดหรือสูงขึ้น กรุณาแจ้งเจ้าหน้าที่"
+    );
+  }
+  if (symptom.includes("ปวด") || symptom.includes("บวม")) {
+    return (
+      "💉 การดูแลเบื้องต้นบริเวณที่ฉีดวัคซีน\n" +
+      "• ประคบเย็นบริเวณที่ปวด/บวม ครั้งละ 15-20 นาที\n" +
+      "• หลีกเลี่ยงการนวดหรือกดบริเวณที่ฉีด\n" +
+      "• ให้ขยับแขน/ขาได้ตามปกติ ไม่ต้องงดใช้งาน\n" +
+      "• หากปวดมาก ให้ยาแก้ปวดพาราเซตามอลตามคำแนะนำแพทย์\n" +
+      "• หากบวมแดงมากขึ้น มีหนอง หรือไข้ร่วมด้วย กรุณาแจ้งเจ้าหน้าที่ทันที"
+    );
+  }
+  if (symptom.includes("ไข้สูง")) {
+    return (
+      "🔥 การดูแลเมื่อมีไข้สูง\n" +
+      "• เช็ดตัวลดไข้ด้วยน้ำอุ่นอย่างต่อเนื่อง\n" +
+      "• ให้ยาลดไข้พาราเซตามอลตามน้ำหนักตัว\n" +
+      "• ให้ดื่มน้ำเพียงพอ สังเกตอาการซึม/ไม่ตอบสนอง/ชัก\n" +
+      "• วัดไข้ซ้ำทุก 1-2 ชั่วโมง\n\n" +
+      `📞 หากไข้ไม่ลดหรือกังวล ติดต่อสอบถามเจ้าหน้าที่ได้ที่: ${HOSPITAL_CONTACT_URL}`
+    );
+  }
+  return "✅ อาการปกติ ให้สังเกตอาการต่อไป";
 }
 
 // =====================
@@ -412,6 +464,49 @@ async function handleEvent(e) {
   }
 
   // ================================================================
+  // 3.5) ยืนยัน/ยกเลิก อาการรุนแรง __confirm_severe__::<childKey> / __cancel_severe__::<childKey>
+  // ================================================================
+  if (text.startsWith("__confirm_severe__")) {
+    const childKey = text.split("::")[1];
+    const follow   = childKey ? await fbGet(`symptoms/${childKey}`) : null;
+
+    if (!follow) {
+      await reply(e.replyToken, "❌ ไม่พบข้อมูล กรุณาติดต่อเจ้าหน้าที่โดยตรง โทร 1669");
+      return;
+    }
+
+    const now = Date.now();
+    await fbPatch(`symptoms/${childKey}`, {
+      userId, symptom: SEVERE_SYMPTOM_TEXT,
+      level: "🔴 ต้องติดตามใกล้ชิด", status: "ด่วน", priority: 1,
+      nextFollowUp: null, lastAskedAt: null,
+      remindCount: 0, lastRemindAt: null, noResponseAlert: false,
+      updatedAt: now, time: now,
+    });
+
+    await replyQuick(
+      e.replyToken,
+      `🚨 อาการรุนแรง กรุณาขอความช่วยเหลือทันที!\n\n` +
+        `👶 ${follow.name || "-"}\n` +
+        `🩺 อาการ: ชัก / ยกแขนไม่ได้\n\n` +
+        `กดปุ่มด้านล่างเพื่อโทรสายด่วน 1669 ทันที ทีมเจ้าหน้าที่ของเราได้รับแจ้งเคสด่วนนี้แล้วเช่นกัน`,
+      [{ type: "action", action: { type: "uri", label: "📞 โทร 1669 ทันที", uri: "tel:1669" } }]
+    );
+    console.log(`🚨 อาการรุนแรงยืนยันแล้ว: ${follow.name} (${childKey})`);
+    return;
+  }
+
+  if (text.startsWith("__cancel_severe__")) {
+    const childKey = text.split("::")[1];
+    await replyQuick(
+      e.replyToken,
+      "กรุณาเลือกอาการล่าสุดของน้องอีกครั้ง:",
+      buildSymptomQuickReply(childKey)
+    );
+    return;
+  }
+
+  // ================================================================
   // 4) รับรายงานอาการ
   // ================================================================
   if (text.startsWith("อาการ:")) {
@@ -460,6 +555,23 @@ async function handleEvent(e) {
       follow = await fbGet(`symptoms/${childKey}`) || {};
     }
 
+    // ✅ อาการรุนแรง: ต้องให้ผู้ปกครองยืนยันก่อน แล้วค่อยส่งปุ่มโทร 1669 ทันที
+    // (ไม่บันทึกลง Firebase หรือปิดเคสจนกว่าจะกดยืนยัน)
+    if (symptom === SEVERE_SYMPTOM_TEXT) {
+      await replyQuick(
+        e.replyToken,
+        `⚠️ กรุณายืนยันอาการ\n\n` +
+          `👶 ${follow.name || "-"}\n` +
+          `คุณกำลังแจ้งว่าน้องมีอาการชักหรือยกแขนไม่ได้ ใช่หรือไม่?\n\n` +
+          `หากยืนยัน ระบบจะแนะนำให้โทรสายด่วน 1669 ทันที`,
+        [
+          { type: "action", action: { type: "message", label: "✅ ยืนยัน อาการรุนแรง", text: `__confirm_severe__::${childKey}` } },
+          { type: "action", action: { type: "message", label: "❌ ไม่ใช่ เลือกใหม่",   text: `__cancel_severe__::${childKey}` } },
+        ]
+      );
+      return;
+    }
+
     let normalCount = follow.normalCount || 0;
     if (symptom === "ปกติ") normalCount++; else normalCount = 0;
 
@@ -484,9 +596,7 @@ async function handleEvent(e) {
       return;
     }
 
-    let advice = "✅ อาการปกติ ให้สังเกตอาการต่อไป";
-    if (level.includes("🟠")) advice = "⚠️ ควรเฝ้าระวัง วัดไข้ทุก 4 ชั่วโมง";
-    if (level.includes("🔴")) advice = "🚨 อาการรุนแรง รอเจ้าหน้าที่รับเคสด่วน!";
+    const advice = buildCareAdvice(symptom);
 
     const sentStep     = follow.sentFollowStep || follow.followStep || 1;
     const nextStep     = Math.min(sentStep + 1, MAX_STEP + 1);
