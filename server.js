@@ -139,11 +139,21 @@ async function pushMessages(userId, messages) {
       { headers: LINE_HEADERS() }
     );
     console.log(`✅ pushMessages → ${userId} OK:`, r.status);
-    return true;
+    return { ok: true };
   } catch (err) {
-    console.error("pushMessages error:", err.response?.data || err.message);
-    return false;
+    const status = err.response?.status || null;
+    const data   = err.response?.data   || null;
+    console.error("pushMessages error:", status, data || err.message);
+    return { ok: false, status, data, message: err.message };
   }
+}
+
+// ✅ ตรวจว่า error จาก LINE Push API เป็นกรณี "ผู้ปกครอง block/unfriend LINE OA" หรือไม่
+// LINE จะตอบ 400 พร้อมข้อความทำนอง "The user hasn't added the bot as a friend (or has blocked the bot)."
+function isLineUnfriendedError(pushResult) {
+  if (!pushResult || pushResult.ok) return false;
+  const msg = JSON.stringify(pushResult.data || pushResult.message || "").toLowerCase();
+  return pushResult.status === 400 && (msg.includes("friend") || msg.includes("blocked"));
 }
 
 // =====================
@@ -775,10 +785,23 @@ app.post("/api/resend-followup", async (req, res) => {
     const actualHn   = hn   || s.hn   || "-";
 
     const message = buildFollowUpMessage(actualStep, actualName, s.symptom || "", actualHn, key);
-    const ok      = await pushMessages(userId, [message]);
+    const pushResult = await pushMessages(userId, [message]);
 
-    if (!ok) {
-      return res.status(500).json({ message: "ส่ง LINE ไม่สำเร็จ ตรวจสอบ Token หรือ userId" });
+    if (!pushResult.ok) {
+      if (isLineUnfriendedError(pushResult)) {
+        // ผู้ปกครอง block หรือ unfriend LINE OA ไปแล้ว — ส่งข้อความไม่ถึงแน่นอน
+        // ไม่ใช่ server พัง จึงไม่ควรตอบ 500 กันเจ้าหน้าที่เข้าใจผิด
+        return res.status(409).json({
+          message: `❌ ส่งไม่สำเร็จ: ผู้ปกครองของ ${actualName} (HN: ${actualHn}) ยกเลิกเป็นเพื่อนหรือบล็อก LINE OA แล้ว กรุณาติดต่อโดยตรงทางโทรศัพท์แทน`,
+          reason: "line_unfriended",
+        });
+      }
+      // error อื่นจริงๆ (token หมดอายุ, LINE ล่ม ฯลฯ) — ยังเป็นฝั่งระบบ แต่แนบรายละเอียดไว้ช่วย debug
+      return res.status(502).json({
+        message: "ส่ง LINE ไม่สำเร็จ ตรวจสอบ Token หรือสถานะ LINE API",
+        reason: "line_api_error",
+        detail: pushResult.data || pushResult.message,
+      });
     }
 
     const now = Date.now();
