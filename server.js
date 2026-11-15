@@ -49,11 +49,11 @@ function getNextFollowTime(step) {
 function buildSymptomQuickReply(childKey) {
   const suffix = childKey ? `::${childKey}` : "";
   return [
-    { type: "action", action: { type: "message", label: "😊 ปกติ",          text: `อาการ: ปกติ${suffix}` } },
-    { type: "action", action: { type: "message", label: "🤒 ไข้ต่ำ",         text: `อาการ: ไข้ต่ำ${suffix}` } },
-    { type: "action", action: { type: "message", label: "💉 ปวด/บวมฉีดวัคซีน", text: `อาการ: ปวดหรือบวมบริเวณฉีด${suffix}` } },
-    { type: "action", action: { type: "message", label: "🔥 ไข้สูง",          text: `อาการ: ไข้สูง${suffix}` } },
-    { type: "action", action: { type: "message", label: "🚨 อาการรุนแรง",     text: `อาการ: รุนแรง(มีอาการชัก ยกแขนไม่ได้)${suffix}` } },
+    qrPostback("😊 ปกติ",             `อาการ: ปกติ${suffix}`,                            "😊 ปกติ"),
+    qrPostback("🤒 ไข้ต่ำ",            `อาการ: ไข้ต่ำ${suffix}`,                           "🤒 ไข้ต่ำ"),
+    qrPostback("💉 ปวด/บวมฉีดวัคซีน",  `อาการ: ปวดหรือบวมบริเวณฉีด${suffix}`,              "💉 ปวด/บวมบริเวณที่ฉีด"),
+    qrPostback("🔥 ไข้สูง",            `อาการ: ไข้สูง${suffix}`,                           "🔥 ไข้สูง"),
+    qrPostback("🚨 อาการรุนแรง",       `อาการ: ${SEVERE_SYMPTOM_TEXT}${suffix}`,           "🚨 อาการรุนแรง"),
   ];
 }
 
@@ -292,9 +292,9 @@ async function handleEvent(e) {
         text: `🔍 พบข้อมูล\n\n👶 ชื่อ : ${child.name}\n🪪 เลขบัตร ปชช. : ${cid}\n\nกรุณายืนยันข้อมูล`,
         quickReply: {
           items: [
-            { type: "action", action: { type: "message", label: "✅ ยืนยัน", text: `__confirm__${cid}__${child.key}` } },
-            { type: "action", action: { type: "message", label: "❌ ยกเลิก", text: `__cancel__` } }
-          ]
+          qrPostback("✅ ยืนยัน", `__confirm__${cid}__${childKey}`, "✅ ยืนยัน"),
+          qrPostback("❌ ยกเลิก", `__cancel__`,                      "❌ ยกเลิก"),
+        ]
         }
       };
       await axios.post(
@@ -585,8 +585,8 @@ async function handleEvent(e) {
           `คุณกำลังแจ้งว่าน้องมีอาการชักหรือยกแขนไม่ได้ ใช่หรือไม่?\n\n` +
           `หากยืนยัน ระบบจะแนะนำให้โทรสายด่วน 1669 ทันที`,
         [
-          { type: "action", action: { type: "message", label: "✅ ยืนยัน อาการรุนแรง", text: `__confirm_severe__::${childKey}` } },
-          { type: "action", action: { type: "message", label: "❌ ไม่ใช่ เลือกใหม่",   text: `__cancel_severe__::${childKey}` } },
+          qrPostback("✅ ยืนยัน อาการรุนแรง", `__confirm_severe__::${childKey}`, "✅ ยืนยัน อาการรุนแรง"),
+          qrPostback("❌ ไม่ใช่ เลือกใหม่",    `__cancel_severe__::${childKey}`,  "❌ ไม่ใช่ เลือกใหม่"),
         ]
       );
       return;
