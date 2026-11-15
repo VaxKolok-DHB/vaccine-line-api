@@ -99,25 +99,44 @@ if (process.env.FIREBASE_SERVICE_ACCOUNT) {
 // ตัดค่า undefined ออก (Admin SDK ไม่ยอมรับ undefined)
 const clean = (data) => JSON.parse(JSON.stringify(data));
 
-async function fbGet(path) {
-  if (fbDb) {
-    const snap = await fbDb.ref(path).once("value");
-    return snap.val() || null;
+// ครอบทุกคำสั่ง Firebase ให้ log ว่า "คำสั่งไหน / path ไหน" ล้มเหลว (ของเดิมเห็นแค่ Permission denied ไม่รู้ว่า path ไหน)
+async function fbRun(op, path, fn) {
+  try {
+    return await fn();
+  } catch (err) {
+    const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+    console.error(`🔥 Firebase ${op} "${path}" ล้มเหลว: ${detail}`);
+    throw err;
   }
-  const r = await axios.get(`${DB}/${path}.json`);
-  return r.data || null;
+}
+
+async function fbGet(path) {
+  return fbRun("GET", path, async () => {
+    if (fbDb) {
+      const snap = await fbDb.ref(path).once("value");
+      return snap.val() || null;
+    }
+    const r = await axios.get(`${DB}/${path}.json`);
+    return r.data || null;
+  });
 }
 async function fbSet(path, data) {
-  if (fbDb) return fbDb.ref(path).set(clean(data));
-  await axios.put(`${DB}/${path}.json`, data);
+  return fbRun("SET", path, async () => {
+    if (fbDb) return fbDb.ref(path).set(clean(data));
+    await axios.put(`${DB}/${path}.json`, data);
+  });
 }
 async function fbPatch(path, data) {
-  if (fbDb) return fbDb.ref(path).update(clean(data));
-  await axios.patch(`${DB}/${path}.json`, data);
+  return fbRun("PATCH", path, async () => {
+    if (fbDb) return fbDb.ref(path).update(clean(data));
+    await axios.patch(`${DB}/${path}.json`, data);
+  });
 }
 async function fbDelete(path) {
-  if (fbDb) return fbDb.ref(path).remove();
-  await axios.delete(`${DB}/${path}.json`);
+  return fbRun("DELETE", path, async () => {
+    if (fbDb) return fbDb.ref(path).remove();
+    await axios.delete(`${DB}/${path}.json`);
+  });
 }
 
 // =====================
