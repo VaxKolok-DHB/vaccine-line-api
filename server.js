@@ -17,7 +17,8 @@ app.use(express.json());
 const TOKEN = process.env.LINE_TOKEN || "h2xP7qrpsi61rF8PsP9cXAD1IW4xPidRomIj3x4Jk0XyUiJ75t5pMz1mKA/0mjtOzRpfGzesWr5Gh+P0EAH6gTKJ+lhqyOIVGOgS+o9cY3QXBInmGRAOvjiift6fNcQ492IMKgv+vEpM8BqlcT8kVAdB04t89/1O/w1cDnyilFU=";
 const DB    = process.env.DB_URL || "https://vaccine-dashboard-bc687-default-rtdb.firebaseio.com";
 
-const MAX_NORMAL      = 5;
+
+const MAX_NORMAL      = 3; // ✅ ลดให้เท่ากับ MAX_STEP (รอบประเมินมีแค่ 3 รอบ ถ้าเดิม 5 จะปิดเคสอัตโนมัติไม่ได้เลย)
 const MAX_STEP        = 3;
 const REMINDER_DELAY  = parseInt(process.env.REMINDER_DELAY)  || 30 * 60 * 1000; // ✅ เตือนซ้ำทุก 30 นาที
 const MAX_REMIND_COUNT= parseInt(process.env.MAX_REMIND_COUNT) || 2;              // ✅ เตือนซ้ำสูงสุด 2 ครั้ง
@@ -44,8 +45,20 @@ function getNextFollowTime(step) {
   return Date.now() + delay;
 }
 
+// ✅ ปุ่ม quick reply แบบ postback
+//   data        = ค่าที่ส่งให้ระบบ (ผู้ใช้ไม่เห็น เช่น รหัสเด็ก, เลขบัตร)
+//   displayText = ข้อความสั้นๆ ที่ขึ้นในแชตเป็นข้อความของผู้ใช้ (ไม่ทำให้เกิด message event ซ้ำ)
+//   label       = ข้อความบนปุ่ม (ยาวไม่เกิน 20 ตัวอักษร)
+function qrPostback(label, data, displayText) {
+  return {
+    type: "action",
+    action: { type: "postback", label, data, displayText: displayText || label },
+  };
+}
+
 // ✅ แนบ childKey ต่อท้ายด้วย "::" เพื่อให้รู้แน่ชัดว่าคำตอบนี้เป็นของเด็กคนไหน
 // (แก้ปัญหาผู้ปกครองที่มีลูกหลายคน ตอบแบบสอบถามแล้วไปอัปเดตข้อมูลของลูกคนอื่นแทน)
+// ใช้ postback: ในแชตจะเห็นแค่ displayText ไม่เห็นรหัสเด็ก
 function buildSymptomQuickReply(childKey) {
   const suffix = childKey ? `::${childKey}` : "";
   return [
@@ -56,16 +69,76 @@ function buildSymptomQuickReply(childKey) {
     qrPostback("🚨 อาการรุนแรง",       `อาการ: ${SEVERE_SYMPTOM_TEXT}${suffix}`,           "🚨 อาการรุนแรง"),
   ];
 }
+
 // =====================
 // Firebase helpers (axios REST)
 // =====================
-async function fbGet(path) {
-  const r = await axios.get(`${DB}/${path}.json`);
-  return r.data || null;
+// ✅ ใช้ Firebase Admin SDK (service account) เมื่อมี FIREBASE_SERVICE_ACCOUNT
+// Admin SDK ผ่านกฎ (rules) ของฐานข้อมูลได้ ทำให้ล็อก rules ไม่ให้บุคคลภายนอกอ่าน/เขียนได้
+// ถ้าไม่ตั้งค่า จะถอยกลับไปเรียก REST แบบไม่ล็อกอินเหมือนเดิม (จะใช้ได้เฉพาะ path ที่ rules เปิดไว้)
+let fbDb = null;
+if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+  try {
+    const admin = require("firebase-admin");
+    const raw   = process.env.FIREBASE_SERVICE_ACCOUNT.trim();
+    // รองรับทั้ง JSON ตรงๆ และ base64 ของไฟล์ JSON
+    const json  = raw.startsWith("{") ? raw : Buffer.from(raw, "base64").toString("utf8");
+    admin.initializeApp({
+      credential:  admin.credential.cert(JSON.parse(json)),
+      databaseURL: DB,
+    });
+    fbDb = admin.database();
+    console.log("🔐 Firebase: ใช้ Admin SDK (service account)");
+  } catch (err) {
+    console.error("❌ เริ่ม Firebase Admin SDK ไม่สำเร็จ:", err.message);
+    process.exit(1);
+  }
+} else {
+  console.warn("⚠️ ไม่พบ FIREBASE_SERVICE_ACCOUNT ใช้ REST แบบไม่ล็อกอิน (อาจเจอ Permission denied ถ้า rules ปิดอยู่)");
 }
-async function fbSet(path, data)   { await axios.put(`${DB}/${path}.json`, data); }
-async function fbPatch(path, data) { await axios.patch(`${DB}/${path}.json`, data); }
-async function fbDelete(path)      { await axios.delete(`${DB}/${path}.json`); }
+
+// ตัดค่า undefined ออก (Admin SDK ไม่ยอมรับ undefined)
+const clean = (data) => JSON.parse(JSON.stringify(data));
+
+// ครอบทุกคำสั่ง Firebase ให้ log ว่า "คำสั่งไหน / path ไหน" ล้มเหลว (ของเดิมเห็นแค่ Permission denied ไม่รู้ว่า path ไหน)
+async function fbRun(op, path, fn) {
+  try {
+    return await fn();
+  } catch (err) {
+    const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+    console.error(`🔥 Firebase ${op} "${path}" ล้มเหลว: ${detail}`);
+    throw err;
+  }
+}
+
+async function fbGet(path) {
+  return fbRun("GET", path, async () => {
+    if (fbDb) {
+      const snap = await fbDb.ref(path).once("value");
+      return snap.val() || null;
+    }
+    const r = await axios.get(`${DB}/${path}.json`);
+    return r.data || null;
+  });
+}
+async function fbSet(path, data) {
+  return fbRun("SET", path, async () => {
+    if (fbDb) return fbDb.ref(path).set(clean(data));
+    await axios.put(`${DB}/${path}.json`, data);
+  });
+}
+async function fbPatch(path, data) {
+  return fbRun("PATCH", path, async () => {
+    if (fbDb) return fbDb.ref(path).update(clean(data));
+    await axios.patch(`${DB}/${path}.json`, data);
+  });
+}
+async function fbDelete(path) {
+  return fbRun("DELETE", path, async () => {
+    if (fbDb) return fbDb.ref(path).remove();
+    await axios.delete(`${DB}/${path}.json`);
+  });
+}
 
 // =====================
 // LINE Messaging helpers
@@ -82,8 +155,10 @@ async function reply(replyToken, text) {
       { replyToken, messages: [{ type: "text", text }] },
       { headers: LINE_HEADERS() }
     );
+    return true;
   } catch (err) {
     console.error("reply error:", err.response?.data || err.message);
+    return false;
   }
 }
 
@@ -94,8 +169,10 @@ async function replyFlex(replyToken, altText, flexContents) {
       { replyToken, messages: [{ type: "flex", altText, contents: flexContents }] },
       { headers: LINE_HEADERS() }
     );
+    return true;
   } catch (err) {
     console.error("replyFlex error:", err.response?.data || err.message);
+    return false;
   }
 }
 
@@ -236,6 +313,10 @@ app.post("/webhook", async (req, res) => {
       await handleEvent(e);
     } catch (err) {
       console.error("event error:", err.response?.data || err.message);
+      // แจ้งผู้ใช้ว่าระบบขัดข้อง (ถ้า replyToken ถูกใช้ไปแล้ว คำสั่งนี้จะล้มเหลวเงียบๆ ไม่มีผลเสีย)
+      if (e && e.replyToken) {
+        await reply(e.replyToken, "❌ ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง หากยังไม่ได้ กรุณาติดต่อเจ้าหน้าที่");
+      }
     }
   }
 });
@@ -245,38 +326,50 @@ async function handleEvent(e) {
 
   if (e.type === "follow") {
     await push(e.source.userId,
-      "👋 ยินดีต้อนรับสู่ระบบ VaxKolok 🏥\n\nกรุณาลงทะเบียนโดยพิมพ์:\nลงทะเบียน [HN]\n\nตัวอย่าง: ลงทะเบียน 12345"
+      "👋 ยินดีต้อนรับสู่ระบบ VaxKolok 🏥\n\nกรุณาลงทะเบียนโดยพิมพ์:\nลงทะเบียน [เลขบัตรประชาชน]\n\nตัวอย่าง: ลงทะเบียน 1234567890123"
     );
     return;
   }
 
-  if (e.type !== "message" || e.message?.type !== "text") return;
+  // ✅ รับได้ทั้งข้อความที่ผู้ใช้พิมพ์เอง (message) และการกดปุ่ม (postback)
+  // ปุ่มรุ่นเก่าที่ยังค้างอยู่ในแชตจะส่งมาเป็น message เหมือนเดิม จึงยังใช้งานได้
+  let text;
+  if (e.type === "message" && e.message?.type === "text") {
+    text = e.message.text.trim();
+  } else if (e.type === "postback" && typeof e.postback?.data === "string") {
+    text = e.postback.data.trim();
+  } else {
+    return;
+  }
 
-  const text   = e.message.text.trim();
   const userId = e.source.userId;
-  console.log(`📩 [${userId}] "${text}"`);
+  console.log(`📩 [${userId}] ${e.type === "postback" ? "(postback) " : ""}"${text}"`);
 
   // ================================================================
-  // 1) ลงทะเบียน HN
+  // 1) ลงทะเบียน เลขบัตรประชาชน (CID)
   // ================================================================
   if (/^ลงทะเบียน/i.test(text)) {
-    const hn = text.replace(/^ลงทะเบียน\s*:?\s*/i, "").replace(/\D/g, "").trim();
-    if (!hn) {
-      await reply(e.replyToken, "❌ กรุณาระบุ HN เช่น:\nลงทะเบียน 12345");
+    const cid = text.replace(/^ลงทะเบียน\s*:?\s*/i, "").replace(/\D/g, "").trim();
+    if (!cid) {
+      await reply(e.replyToken, "❌ กรุณาระบุเลขบัตรประชาชน 13 หลัก เช่น:\nลงทะเบียน 1234567890123");
       return;
     }
-    console.log("HN =", hn);
+    if (cid.length !== 13) {
+      await reply(e.replyToken, "❌ เลขบัตรประชาชนต้องมี 13 หลัก กรุณาตรวจสอบและพิมพ์ใหม่อีกครั้ง\nตัวอย่าง: ลงทะเบียน 1234567890123");
+      return;
+    }
+    console.log("CID =", cid);
 
     const children = await fbGet("children") || {};
     const matches  = [];
     for (const key in children) {
-      if (String(children[key].hn || "").trim() === hn) {
+      if (String(children[key].cid || "").replace(/\D/g, "") === cid) {
         matches.push({ key, ...children[key] });
       }
     }
 
     if (matches.length === 0) {
-      await reply(e.replyToken, "❌ ไม่พบข้อมูล HN นี้ในระบบ\nกรุณาติดต่อเจ้าหน้าที่");
+      await reply(e.replyToken, "❌ ไม่พบข้อมูลเลขบัตรประชาชนนี้ในระบบ\nกรุณาติดต่อเจ้าหน้าที่");
       return;
     }
 
@@ -284,7 +377,7 @@ async function handleEvent(e) {
       const child = matches[0];
       const msg = {
         type: "text",
-        text: `🔍 พบข้อมูล\n\n👶 ชื่อ : ${child.name}\n🏥 HN  : ${hn}\n\nกรุณายืนยันข้อมูล`,
+        text: `🔍 พบข้อมูล\n\n👶 ชื่อ : ${child.name}\n🪪 เลขบัตร ปชช. : ${cid}\n\nกรุณายืนยันข้อมูล`,
         quickReply: {
           items: [
             qrPostback("✅ ยืนยัน", `__confirm__${cid}__${child.key}`, "✅ ยืนยัน"),
@@ -298,32 +391,30 @@ async function handleEvent(e) {
         { headers: LINE_HEADERS() }
       );
       await fbSet(`pendingRegister/${userId}`, {
-        hn, childKey: child.key, requireName: false, createdAt: Date.now(),
+        cid, childKey: child.key, requireName: false, createdAt: Date.now(),
       });
     } else {
-      // ✅ HN ซ้ำหลายรายการ: ให้เลือกจากปุ่ม (quick reply) แทนการพิมพ์ยืนยันชื่อเอง
+      // ✅ เลขบัตรประชาชนซ้ำหลายรายการ (ข้อมูลซ้ำในระบบ): ให้เลือกจากปุ่ม (quick reply) แทนการพิมพ์ยืนยันชื่อเอง
       // ตัดเหลือ 12 รายการแรก (LINE จำกัด quick reply ไม่เกิน 13 ปุ่ม เผื่อ 1 ปุ่มไว้ยกเลิก)
       const list = matches.slice(0, 12);
       const listText = list
         .map((c, i) => {
-          const cidDigits = String(c.cid || "").replace(/\D/g, "");
-          const cidLabel  = cidDigits ? ` (เลขบัตร ปชช. ...${cidDigits.slice(-4)})` : "";
-          return `${i + 1}. ${c.name || "ไม่ระบุชื่อ"}${cidLabel}`;
+          const hnLabel = c.hn ? ` (HN: ${c.hn})` : "";
+          return `${i + 1}. ${c.name || "ไม่ระบุชื่อ"}${hnLabel}`;
         })
         .join("\n");
       const moreNote = matches.length > list.length
         ? `\n\n(แสดง ${list.length} จาก ${matches.length} รายการ หากไม่พบชื่อที่ต้องการ กรุณาติดต่อเจ้าหน้าที่)`
         : "";
 
-      const items = list.map((c, i) => ({
-        type: "action",
-        action: { type: "message", label: `เลือกที่ ${i + 1}`, text: `__confirm__${hn}__${c.key}` }
-      }));
+      const items = list.map((c, i) =>
+        qrPostback(`เลือกที่ ${i + 1}`, `__confirm__${cid}__${c.key}`, `เลือกที่ ${i + 1}`)
+      );
       items.push(qrPostback("❌ ยกเลิก", "__cancel__", "❌ ยกเลิก"));
 
       const msg = {
         type: "text",
-        text: `⚠️ HN ${hn} มีหลายรายการ (${matches.length} รายการ)\nกรุณาเลือกรายการที่ถูกต้อง:\n\n${listText}${moreNote}`,
+        text: `⚠️ เลขบัตรประชาชนนี้มีหลายรายการ (${matches.length} รายการ)\nกรุณาเลือกรายการที่ถูกต้อง:\n\n${listText}${moreNote}`,
         quickReply: { items }
       };
       await axios.post(
@@ -331,40 +422,40 @@ async function handleEvent(e) {
         { replyToken: e.replyToken, messages: [msg] },
         { headers: LINE_HEADERS() }
       );
-      await fbSet(`pendingRegister/${userId}`, { hn, requireName: true, createdAt: Date.now() });
+      await fbSet(`pendingRegister/${userId}`, { cid, requireName: true, createdAt: Date.now() });
     }
     return;
   }
 
   // ================================================================
-  // 1.5) ยืนยันด้วยชื่อ (กรณี HN ซ้ำ)
+  // 1.5) ยืนยันด้วยชื่อ (กรณีเลขบัตรประชาชนซ้ำ)
   // ================================================================
   if (/^ยืนยัน\s+\d+/i.test(text)) {
     const m = text.match(/^ยืนยัน\s+(\d+)\s+(.+)$/i);
     if (!m) {
-      await reply(e.replyToken, "❌ รูปแบบไม่ถูกต้อง\nตัวอย่าง: ยืนยัน 12345 ด.ช.เอ บี");
+      await reply(e.replyToken, "❌ รูปแบบไม่ถูกต้อง\nตัวอย่าง: ยืนยัน 1234567890123 ด.ช.เอ บี");
       return;
     }
-    const hn        = m[1].trim();
+    const cid       = m[1].trim();
     const nameInput = m[2].trim().replace(/\s+/g, " ").toLowerCase();
 
     const children   = await fbGet("children") || {};
-    const candidates = Object.entries(children).filter(([, c]) => String(c.hn || "").trim() === hn);
+    const candidates = Object.entries(children).filter(([, c]) => String(c.cid || "").replace(/\D/g, "") === cid);
     if (candidates.length === 0) {
-      await reply(e.replyToken, "❌ ไม่พบ HN นี้ กรุณาติดต่อเจ้าหน้าที่");
+      await reply(e.replyToken, "❌ ไม่พบเลขบัตรประชาชนนี้ กรุณาติดต่อเจ้าหน้าที่");
       return;
     }
     const found = candidates.find(([, c]) =>
       String(c.name || "").trim().toLowerCase().replace(/\s+/g, " ") === nameInput
     );
     if (!found) {
-      await reply(e.replyToken, "❌ ไม่พบชื่อที่ตรงกับ HN นี้\nกรุณาตรวจสอบการสะกดอีกครั้ง");
+      await reply(e.replyToken, "❌ ไม่พบชื่อที่ตรงกับเลขบัตรประชาชนนี้\nกรุณาตรวจสอบการสะกดอีกครั้ง");
       return;
     }
     const [childKey, child] = found;
     const msg = {
       type: "text",
-      text: `🔍 พบข้อมูล\n\n👶 ชื่อ : ${child.name}\n🏥 HN  : ${hn}\n\nกรุณายืนยันข้อมูล`,
+      text: `🔍 พบข้อมูล\n\n👶 ชื่อ : ${child.name}\n🪪 เลขบัตร ปชช. : ${cid}\n\nกรุณายืนยันข้อมูล`,
       quickReply: {
         items: [
           qrPostback("✅ ยืนยัน", `__confirm__${cid}__${childKey}`, "✅ ยืนยัน"),
@@ -377,57 +468,180 @@ async function handleEvent(e) {
       { replyToken: e.replyToken, messages: [msg] },
       { headers: LINE_HEADERS() }
     );
-    await fbSet(`pendingRegister/${userId}`, { hn, childKey, requireName: false, createdAt: Date.now() });
+    await fbSet(`pendingRegister/${userId}`, { cid, childKey, requireName: false, createdAt: Date.now() });
     return;
   }
 
   // ================================================================
-  // 2) ยืนยันการลงทะเบียน __confirm__<hn>__<childKey>
+  // 2) ยืนยันการลงทะเบียน __confirm__<cid>__<childKey>
   // ================================================================
   if (text.startsWith("__confirm__")) {
-    const parts    = text.split("__").filter(Boolean);
-    const hnInput  = parts[1];
-    const childKey = parts[2];
+    // แยกด้วยตำแหน่ง "__" แรกหลัง cid (cid เป็นตัวเลขล้วน) กัน childKey ที่มี "__" อยู่ข้างใน
+    const rest     = text.slice("__confirm__".length);
+    const sepIdx   = rest.indexOf("__");
+    const cidInput = sepIdx === -1 ? rest : rest.slice(0, sepIdx);
+    const childKey = sepIdx === -1 ? ""   : rest.slice(sepIdx + 2);
 
-    const children = await fbGet("children") || {};
-    const child    = children[childKey];
-    if (!child) {
-      await reply(e.replyToken, "❌ ไม่พบข้อมูล กรุณาติดต่อเจ้าหน้าที่");
+    if (!childKey) {
+      await reply(e.replyToken, "❌ ข้อมูลการยืนยันไม่ถูกต้อง กรุณาพิมพ์ ลงทะเบียน [เลขบัตรประชาชน] ใหม่อีกครั้ง");
       return;
     }
 
-    const now       = Date.now();
-    const step1Time = getNextFollowTime(1);
+   
+    let child;
 
-    await fbSet(`symptoms/${childKey}`, {
-      childKey, userId,
-      name:     child.name     || "",
-      hn:       child.hn       || "",
-      cid:      child.cid      || "",
-      phone:    child.phone    || "",
-      birth:    child.birth    || "",
-      tambon:   child.tambon   || "",
-      hospital: child.hospital || "",
-      house:    child.house    || "",
-      village:  child.village  || "",
-      vaccines: child.vaccines || {},
-      symptom: "", level: "🟢 ปกติ", status: "รอติดตาม",
-      priority: 3, assignedTo: "", followStep: 1, normalCount: 0,
-      nextFollowUp: step1Time, registeredAt: now,
-      lastAskedAt: null, sentFollowStep: null,
-      remindCount: 0, lastRemindAt: null, noResponseAlert: false, // ✅ เพิ่ม field ใหม่
-      updatedAt: now, closedAt: null, time: now,
-    });
+    try {
+      // 1) ตรวจสอบรายการที่ผู้ใช้กำลังยืนยัน
+      const pending = await fbGet(`pendingRegister/${userId}`);
 
-    await fbPatch(`children/${childKey}`, { lineUserId: userId, updatedAt: thaiTime() });
-    await fbDelete(`pendingRegister/${userId}`);
+      if (!pending) {
+        await reply(
+          e.replyToken,
+          "⚠️ ไม่พบรายการลงทะเบียนที่รอยืนยัน กรุณาพิมพ์ ลงทะเบียน [เลขบัตรประชาชน] ใหม่อีกครั้ง"
+        );
+        return;
+      }
 
-    await replyFlex(e.replyToken, "✅ ลงทะเบียนสำเร็จ", {
+      // ตรวจสอบ CID ว่าตรงกับรายการที่รอยืนยัน
+      if (
+        String(pending.cid || "").replace(/\D/g, "") !==
+        String(cidInput || "").replace(/\D/g, "")
+      ) {
+        await reply(
+          e.replyToken,
+          "❌ ข้อมูลยืนยันไม่ตรงกับรายการลงทะเบียน กรุณาเริ่มลงทะเบียนใหม่"
+        );
+        return;
+      }
+
+      // กรณีมี childKey ใน pending ต้องตรงกับปุ่มที่กด
+      if (pending.childKey && pending.childKey !== childKey) {
+        await reply(
+          e.replyToken,
+          "❌ รายการที่เลือกไม่ตรงกับข้อมูลที่รอยืนยัน กรุณาลงทะเบียนใหม่"
+        );
+        return;
+      }
+
+      // 2) ดึงข้อมูลเด็ก
+      child = await fbGet(`children/${childKey}`);
+
+      if (!child) {
+        await reply(
+          e.replyToken,
+          "❌ ไม่พบข้อมูลเด็กในระบบ กรุณาติดต่อเจ้าหน้าที่"
+        );
+        return;
+      }
+
+      // ตรวจสอบ CID กับข้อมูลเด็กอีกครั้ง
+      const childCid = String(child.cid || "").replace(/\D/g, "");
+      if (childCid && childCid !== String(cidInput).replace(/\D/g, "")) {
+        await reply(
+          e.replyToken,
+          "❌ เลขบัตรประชาชนไม่ตรงกับข้อมูลในระบบ กรุณาติดต่อเจ้าหน้าที่"
+        );
+        return;
+      }
+
+      // 3) เตรียมข้อมูล
+      const now = Date.now();
+      const step1Time = getNextFollowTime(1);
+
+      const symptomData = {
+        childKey,
+        userId,
+        name: child.name || "",
+        hn: child.hn || "",
+        cid: child.cid || "",
+        phone: child.phone || "",
+        birth: child.birth || "",
+        tambon: child.tambon || "",
+        hospital: child.hospital || "",
+        house: child.house || "",
+        village: child.village || "",
+        vaccines: child.vaccines || {},
+
+        symptom: "",
+        level: "🟢 ปกติ",
+        status: "รอติดตาม",
+        priority: 3,
+        assignedTo: "",
+
+        followStep: 1,
+        normalCount: 0,
+        nextFollowUp: step1Time,
+
+        registeredAt: now,
+        lastAskedAt: null,
+        sentFollowStep: null,
+
+        remindCount: 0,
+        lastRemindAt: null,
+        noResponseAlert: false,
+
+        updatedAt: now,
+        closedAt: null,
+        time: now,
+      };
+
+      // 4) บันทึกทั้ง 3 ตำแหน่งพร้อมกัน
+      await fbMultiUpdate({
+        [`symptoms/${childKey}`]: symptomData,
+
+        [`children/${childKey}/lineUserId`]: userId,
+        [`children/${childKey}/updatedAt`]: thaiTime(),
+
+        // null = ลบรายการที่รอยืนยัน
+        [`pendingRegister/${userId}`]: null,
+      });
+
+      console.log(
+        `✅ Atomic registration สำเร็จ: ${child.name || "-"} childKey=${childKey}`
+      );
+
+    } catch (err) {
+      console.error(
+        "❌ confirm register error:",
+        err.response?.data || err.message
+      );
+
+      const errorMessage =
+        "❌ ระบบบันทึกข้อมูลไม่สำเร็จ กรุณาลองกดยืนยันอีกครั้ง หากยังไม่ได้ กรุณาติดต่อเจ้าหน้าที่";
+
+      // replyToken อาจหมดอายุหรือถูกใช้ไปแล้ว
+      const sent = await reply(e.replyToken, errorMessage);
+
+      // ถ้าตอบด้วย reply ไม่ได้ ให้ส่ง push แทน
+      if (!sent) {
+        await push(userId, errorMessage);
+      }
+
+      return;
+    }
+
+// อัปเดตหลายตำแหน่งพร้อมกันแบบ Atomic
+// ถ้ารายการใดรายการหนึ่งผิดพลาด Firebase จะไม่บันทึกเพียงบางส่วน
+      async function fbMultiUpdate(updates) {
+        return fbRun("MULTI-UPDATE", "/", async () => {
+          if (fbDb) {
+            return fbDb.ref("/").update(clean(updates));
+          }
+
+          const r = await axios.patch(`${DB}/.json`, updates);
+          return r.data;
+        });
+}
+
+      const childName = child.name || "-";
+      const cidShow = cidInput || String(child.cid || "-");
+
+    const flexCard = {
       type: "bubble", size: "kilo",
       header: {
         type: "box", layout: "vertical", backgroundColor: "#0e9f6e", paddingAll: "20px",
         contents: [
-          { type: "text", text: "✅ ลงทะเบียนสำเร็จ",              color: "#ffffff", size: "lg", weight: "bold" },
+          { type: "text", text: "✅ ลงทะเบียนสำเร็จ",color: "#ffffff", size: "lg", weight: "bold" },
           { type: "text", text: "ระบบติดตามวัคซีนเด็ก VaxKolok", color: "#d1fae5", size: "xs", margin: "sm" }
         ]
       },
@@ -436,11 +650,11 @@ async function handleEvent(e) {
         contents: [
           { type: "box", layout: "horizontal", contents: [
             { type: "text", text: "👶 ชื่อ",  size: "sm", color: "#6b7280", flex: 2 },
-            { type: "text", text: child.name || "-", size: "sm", color: "#0d1b2a", weight: "bold", flex: 5, wrap: true }
+            { type: "text", text: childName, size: "sm", color: "#0d1b2a", weight: "bold", flex: 5, wrap: true }
           ]},
           { type: "box", layout: "horizontal", contents: [
-            { type: "text", text: "🏥 HN",    size: "sm", color: "#6b7280", flex: 2 },
-            { type: "text", text: hnInput,     size: "sm", color: "#0d1b2a", weight: "bold", flex: 5 }
+            { type: "text", text: "🪪 เลขบัตร ปชช.", size: "sm", color: "#6b7280", flex: 2 },
+            { type: "text", text: cidShow,    size: "sm", color: "#0d1b2a", weight: "bold", flex: 5 }
           ]},
           { type: "box", layout: "horizontal", contents: [
             { type: "text", text: "📋 สถานะ", size: "sm", color: "#6b7280", flex: 2 },
@@ -454,9 +668,25 @@ async function handleEvent(e) {
         type: "box", layout: "vertical", paddingAll: "12px", backgroundColor: "#f9fafb",
         contents: [{ type: "text", text: `🕒 ${thaiTime()}`, size: "xs", color: "#9ca3af", align: "center" }]
       }
-    });
+    };
 
-    console.log(`✅ ลงทะเบียนแล้ว: ${child.name} (${hnInput}) childKey=${childKey}`);
+    // ✅ ส่งการ์ด "ลงทะเบียนสำเร็จ" ถ้าการ์ดส่งไม่ผ่าน ให้ส่งเป็นข้อความธรรมดาแทน
+    // และถ้า replyToken ใช้ไม่ได้แล้ว (หมดอายุ) ให้ push หาผู้ใช้โดยตรง ผู้ใช้จะได้รับข้อความเสมอ
+    const plainOk =
+      `✅ ลงทะเบียนสำเร็จ\n\n` +
+      `👶 ชื่อ: ${childName}\n` +
+      `🪪 เลขบัตร ปชช.: ${cidShow}\n` +
+      `📋 สถานะ: รอติดตาม\n\n` +
+      `⏱ ระบบจะส่งแบบประเมินอาการใน 30 นาที\n` +
+      `🕒 ${thaiTime()}`;
+
+    const flexSent = await replyFlex(e.replyToken, "✅ ลงทะเบียนสำเร็จ", flexCard);
+    if (!flexSent) {
+      const textSent = await reply(e.replyToken, plainOk);
+      if (!textSent) await push(userId, plainOk);
+    }
+
+    console.log(`✅ ลงทะเบียนแล้ว: ${childName} (CID: ${cidShow}) childKey=${childKey} flex=${flexSent}`);
     return;
   }
 
@@ -465,7 +695,7 @@ async function handleEvent(e) {
   // ================================================================
   if (text === "__cancel__") {
     await fbDelete(`pendingRegister/${userId}`);
-    await reply(e.replyToken, "❌ ยกเลิกการลงทะเบียนแล้ว\n\nพิมพ์ ลงทะเบียน [HN] เพื่อเริ่มใหม่");
+    await reply(e.replyToken, "❌ ยกเลิกการลงทะเบียนแล้ว\n\nพิมพ์ ลงทะเบียน [เลขบัตรประชาชน] เพื่อเริ่มใหม่");
     return;
   }
 
@@ -555,7 +785,7 @@ async function handleEvent(e) {
         if (children[key].lineUserId === userId) { childKey = key; break; }
       }
       if (!childKey) {
-        await reply(e.replyToken, "❌ ไม่พบข้อมูลการลงทะเบียน\nกรุณาส่ง: ลงทะเบียน [HN]");
+        await reply(e.replyToken, "❌ ไม่พบข้อมูลการลงทะเบียน\nกรุณาส่ง: ลงทะเบียน [เลขบัตรประชาชน]");
         return;
       }
       follow = await fbGet(`symptoms/${childKey}`) || {};
@@ -638,19 +868,22 @@ async function handleEvent(e) {
   // ================================================================
   // Default
   // ================================================================
-  // ✅ กันข้อความชนกัน: ถ้าผู้ใช้อยู่ระหว่างขั้นตอน "ยืนยัน HN ชื่อ-นามสกุล" อยู่
-  // (พิมพ์ผิดรูปแบบ เช่น ลืมคำว่า "ยืนยัน" หรือพิมพ์ "HN12345 ...")
+  // ✅ กันข้อความชนกัน: ถ้าผู้ใช้อยู่ระหว่างขั้นตอน "ยืนยัน เลขบัตรประชาชน ชื่อ-นามสกุล" อยู่
+  // (พิมพ์ผิดรูปแบบ เช่น ลืมคำว่า "ยืนยัน" หรือพิมพ์รูปแบบอื่น)
   // ต้องเตือนกลับไปที่ขั้นตอนนี้ก่อน ห้ามปล่อยให้หลุดไปตอบด้วยระบบ FAQ (Answer.js)
   const pending = await fbGet(`pendingRegister/${userId}`);
   if (pending && pending.requireName) {
     await reply(e.replyToken,
-      `⚠️ ยังไม่ได้ยืนยันตัวตนสำหรับ HN ${pending.hn}\n\n` +
+      `⚠️ ยังไม่ได้ยืนยันตัวตนสำหรับเลขบัตรประชาชน ${pending.cid}\n\n` +
       `กรุณากดปุ่ม "เลือกที่ ..." จากข้อความก่อนหน้านี้\n` +
-      `หรือพิมพ์: ยืนยัน ${pending.hn} ชื่อ-นามสกุล\n\n` +
+      `หรือพิมพ์: ยืนยัน ${pending.cid} ชื่อ-นามสกุล\n\n` +
       `หรือพิมพ์ __cancel__ เพื่อยกเลิก`
     );
     return;
   }
+
+  // postback ที่ไม่รู้จัก (เช่น ปุ่มรุ่นเก่าที่ระบบไม่รองรับแล้ว) ไม่ส่งไปตอบเป็นคำถาม FAQ
+  if (e.type === "postback") return;
 
   const answer = await answerQuestion(text);
   await reply(e.replyToken, answer);
