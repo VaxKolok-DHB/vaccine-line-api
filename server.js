@@ -14,7 +14,12 @@ app.use(express.json());
 // =====================
 // CONFIG
 // =====================
-const TOKEN = process.env.LINE_TOKEN || "h2xP7qrpsi61rF8PsP9cXAD1IW4xPidRomIj3x4Jk0XyUiJ75t5pMz1mKA/0mjtOzRpfGzesWr5Gh+P0EAH6gTKJ+lhqyOIVGOgS+o9cY3QXBInmGRAOvjiift6fNcQ492IMKgv+vEpM8BqlcT8kVAdB04t89/1O/w1cDnyilFU=";
+// ⚠️ ห้ามเขียน token ลงในโค้ด ให้ตั้งค่าเป็น environment variable ชื่อ LINE_TOKEN เท่านั้น
+const TOKEN = process.env.LINE_TOKEN;
+if (!TOKEN) {
+  console.error("❌ ไม่พบ LINE_TOKEN ใน environment variable กรุณาตั้งค่าก่อนเริ่มระบบ");
+  process.exit(1);
+}
 const DB    = process.env.DB_URL || "https://vaccine-dashboard-bc687-default-rtdb.firebaseio.com";
 
 const MAX_NORMAL      = 3; // ✅ ลดให้เท่ากับ MAX_STEP (รอบประเมินมีแค่ 3 รอบ ถ้าเดิม 5 จะปิดเคสอัตโนมัติไม่ได้เลย)
@@ -44,8 +49,20 @@ function getNextFollowTime(step) {
   return Date.now() + delay;
 }
 
+// ✅ ปุ่ม quick reply แบบ postback
+//   data        = ค่าที่ส่งให้ระบบ (ผู้ใช้ไม่เห็น เช่น รหัสเด็ก, เลขบัตร)
+//   displayText = ข้อความสั้นๆ ที่ขึ้นในแชตเป็นข้อความของผู้ใช้ (ไม่ทำให้เกิด message event ซ้ำ)
+//   label       = ข้อความบนปุ่ม (ยาวไม่เกิน 20 ตัวอักษร)
+function qrPostback(label, data, displayText) {
+  return {
+    type: "action",
+    action: { type: "postback", label, data, displayText: displayText || label },
+  };
+}
+
 // ✅ แนบ childKey ต่อท้ายด้วย "::" เพื่อให้รู้แน่ชัดว่าคำตอบนี้เป็นของเด็กคนไหน
 // (แก้ปัญหาผู้ปกครองที่มีลูกหลายคน ตอบแบบสอบถามแล้วไปอัปเดตข้อมูลของลูกคนอื่นแทน)
+// ใช้ postback: ในแชตจะเห็นแค่ displayText ไม่เห็นรหัสเด็ก
 function buildSymptomQuickReply(childKey) {
   const suffix = childKey ? `::${childKey}` : "";
   return [
@@ -251,11 +268,19 @@ async function handleEvent(e) {
     return;
   }
 
-  if (e.type !== "message" || e.message?.type !== "text") return;
+  // ✅ รับได้ทั้งข้อความที่ผู้ใช้พิมพ์เอง (message) และการกดปุ่ม (postback)
+  // ปุ่มรุ่นเก่าที่ยังค้างอยู่ในแชตจะส่งมาเป็น message เหมือนเดิม จึงยังใช้งานได้
+  let text;
+  if (e.type === "message" && e.message?.type === "text") {
+    text = e.message.text.trim();
+  } else if (e.type === "postback" && typeof e.postback?.data === "string") {
+    text = e.postback.data.trim();
+  } else {
+    return;
+  }
 
-  const text   = e.message.text.trim();
   const userId = e.source.userId;
-  console.log(`📩 [${userId}] "${text}"`);
+  console.log(`📩 [${userId}] ${e.type === "postback" ? "(postback) " : ""}"${text}"`);
 
   // ================================================================
   // 1) ลงทะเบียน เลขบัตรประชาชน (CID)
@@ -292,9 +317,9 @@ async function handleEvent(e) {
         text: `🔍 พบข้อมูล\n\n👶 ชื่อ : ${child.name}\n🪪 เลขบัตร ปชช. : ${cid}\n\nกรุณายืนยันข้อมูล`,
         quickReply: {
           items: [
-          qrPostback("✅ ยืนยัน", `__confirm__${cid}__${childKey}`, "✅ ยืนยัน"),
-          qrPostback("❌ ยกเลิก", `__cancel__`,                      "❌ ยกเลิก"),
-        ]
+            qrPostback("✅ ยืนยัน", `__confirm__${cid}__${child.key}`, "✅ ยืนยัน"),
+            qrPostback("❌ ยกเลิก", `__cancel__`,                      "❌ ยกเลิก"),
+          ]
         }
       };
       await axios.post(
@@ -319,11 +344,10 @@ async function handleEvent(e) {
         ? `\n\n(แสดง ${list.length} จาก ${matches.length} รายการ หากไม่พบชื่อที่ต้องการ กรุณาติดต่อเจ้าหน้าที่)`
         : "";
 
-      const items = list.map((c, i) => ({
-        type: "action",
-        action: { type: "message", label: `เลือกที่ ${i + 1}`, text: `__confirm__${cid}__${c.key}` }
-      }));
-      items.push({ type: "action", action: { type: "message", label: "❌ ยกเลิก", text: "__cancel__" } });
+      const items = list.map((c, i) =>
+        qrPostback(`เลือกที่ ${i + 1}`, `__confirm__${cid}__${c.key}`, `เลือกที่ ${i + 1}`)
+      );
+      items.push(qrPostback("❌ ยกเลิก", "__cancel__", "❌ ยกเลิก"));
 
       const msg = {
         type: "text",
@@ -371,18 +395,8 @@ async function handleEvent(e) {
       text: `🔍 พบข้อมูล\n\n👶 ชื่อ : ${child.name}\n🪪 เลขบัตร ปชช. : ${cid}\n\nกรุณายืนยันข้อมูล`,
       quickReply: {
         items: [
-{ type: "action", action: {
-    type: "postback",
-    label: "✅ ยืนยัน",
-    data: `__confirm__${cid}__${childKey}`,   // ส่งให้ระบบ ผู้ใช้ไม่เห็น
-    displayText: "✅ ยืนยัน"                   // ข้อความที่ขึ้นในแชต
-} },
-{ type: "action", action: {
-    type: "postback",
-    label: "❌ ยกเลิก",
-    data: `__cancel__`,
-    displayText: "❌ ยกเลิก"
-} }
+          qrPostback("✅ ยืนยัน", `__confirm__${cid}__${childKey}`, "✅ ยืนยัน"),
+          qrPostback("❌ ยกเลิก", `__cancel__`,                      "❌ ยกเลิก"),
         ]
       }
     };
@@ -399,9 +413,11 @@ async function handleEvent(e) {
   // 2) ยืนยันการลงทะเบียน __confirm__<cid>__<childKey>
   // ================================================================
   if (text.startsWith("__confirm__")) {
-    const parts    = text.split("__").filter(Boolean);
-    const cidInput = parts[1];
-    const childKey = parts[2];
+    // ✅ แยกด้วยตำแหน่ง "__" แรกหลัง cid (cid เป็นตัวเลขล้วน) กัน childKey ที่มี "__" อยู่ข้างใน
+    const rest     = text.slice("__confirm__".length);
+    const sepIdx   = rest.indexOf("__");
+    const cidInput = sepIdx === -1 ? rest : rest.slice(0, sepIdx);
+    const childKey = sepIdx === -1 ? ""   : rest.slice(sepIdx + 2);
 
     const children = await fbGet("children") || {};
     const child    = children[childKey];
@@ -665,6 +681,9 @@ async function handleEvent(e) {
     );
     return;
   }
+
+  // postback ที่ไม่รู้จัก (เช่น ปุ่มรุ่นเก่าที่ระบบไม่รองรับแล้ว) ไม่ส่งไปตอบเป็นคำถาม FAQ
+  if (e.type === "postback") return;
 
   const answer = await answerQuestion(text);
   await reply(e.replyToken, answer);
