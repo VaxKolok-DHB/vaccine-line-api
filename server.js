@@ -520,15 +520,7 @@ async function handleEvent(e) {
 
       await fbPatch(`children/${childKey}`, { lineUserId: userId, updatedAt: thaiTime() });
       await fbDelete(`pendingRegister/${userId}`);
-    } catch (err) {
-      // บันทึกไม่สำเร็จ ต้องแจ้งผู้ใช้ ไม่ปล่อยให้เงียบ
-      console.error("confirm register error:", err.response?.data || err.message);
-      await reply(e.replyToken, "❌ ระบบบันทึกข้อมูลไม่สำเร็จ กรุณากดยืนยันอีกครั้ง หากยังไม่ได้ กรุณาติดต่อเจ้าหน้าที่");
-      return;
-    }
-
-    const childName = child.name || "-";
-    const cidShow   = cidInput || String(child.cid || "-");
+    } 
 
     const flexCard = {
       type: "bubble", size: "kilo",
