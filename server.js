@@ -518,10 +518,19 @@ async function handleEvent(e) {
         updatedAt: now, closedAt: null, time: now,
       });
 
-     await fbPatch(`children/${childKey}`, { lineUserId: userId, updatedAt: thaiTime() });
-    await fbDelete(`pendingRegister/${userId}`);
+      await fbPatch(`children/${childKey}`, { lineUserId: userId, updatedAt: thaiTime() });
+      await fbDelete(`pendingRegister/${userId}`);
+    } catch (err) {
+      // บันทึกไม่สำเร็จ ต้องแจ้งผู้ใช้ ไม่ปล่อยให้เงียบ
+      console.error("confirm register error:", err.response?.data || err.message);
+      await reply(e.replyToken, "❌ ระบบบันทึกข้อมูลไม่สำเร็จ กรุณากดยืนยันอีกครั้ง หากยังไม่ได้ กรุณาติดต่อเจ้าหน้าที่");
+      return;
+    }
 
-    await replyFlex(e.replyToken, "✅ ลงทะเบียนสำเร็จ", {
+    const childName = child.name || "-";
+    const cidShow   = cidInput || String(child.cid || "-");
+
+    const flexCard = {
       type: "bubble", size: "kilo",
       header: {
         type: "box", layout: "vertical", backgroundColor: "#0e9f6e", paddingAll: "20px",
@@ -535,11 +544,11 @@ async function handleEvent(e) {
         contents: [
           { type: "box", layout: "horizontal", contents: [
             { type: "text", text: "👶 ชื่อ",  size: "sm", color: "#6b7280", flex: 2 },
-            { type: "text", text: child.name || "-", size: "sm", color: "#0d1b2a", weight: "bold", flex: 5, wrap: true }
+            { type: "text", text: childName, size: "sm", color: "#0d1b2a", weight: "bold", flex: 5, wrap: true }
           ]},
           { type: "box", layout: "horizontal", contents: [
-            { type: "text", text: "🏥 HN",    size: "sm", color: "#6b7280", flex: 2 },
-            { type: "text", text: hnInput,     size: "sm", color: "#0d1b2a", weight: "bold", flex: 5 }
+            { type: "text", text: "🪪 เลขบัตร ปชช.", size: "sm", color: "#6b7280", flex: 2 },
+            { type: "text", text: cidShow,    size: "sm", color: "#0d1b2a", weight: "bold", flex: 5 }
           ]},
           { type: "box", layout: "horizontal", contents: [
             { type: "text", text: "📋 สถานะ", size: "sm", color: "#6b7280", flex: 2 },
@@ -553,9 +562,25 @@ async function handleEvent(e) {
         type: "box", layout: "vertical", paddingAll: "12px", backgroundColor: "#f9fafb",
         contents: [{ type: "text", text: `🕒 ${thaiTime()}`, size: "xs", color: "#9ca3af", align: "center" }]
       }
-    });
+    };
 
-    console.log(`✅ ลงทะเบียนแล้ว: ${child.name} (${hnInput}) childKey=${childKey}`);
+    // ✅ ส่งการ์ด "ลงทะเบียนสำเร็จ" ถ้าการ์ดส่งไม่ผ่าน ให้ส่งเป็นข้อความธรรมดาแทน
+    // และถ้า replyToken ใช้ไม่ได้แล้ว (หมดอายุ) ให้ push หาผู้ใช้โดยตรง ผู้ใช้จะได้รับข้อความเสมอ
+    const plainOk =
+      `✅ ลงทะเบียนสำเร็จ\n\n` +
+      `👶 ชื่อ: ${childName}\n` +
+      `🪪 เลขบัตร ปชช.: ${cidShow}\n` +
+      `📋 สถานะ: รอติดตาม\n\n` +
+      `⏱ ระบบจะส่งแบบประเมินอาการใน 30 นาที\n` +
+      `🕒 ${thaiTime()}`;
+
+    const flexSent = await replyFlex(e.replyToken, "✅ ลงทะเบียนสำเร็จ", flexCard);
+    if (!flexSent) {
+      const textSent = await reply(e.replyToken, plainOk);
+      if (!textSent) await push(userId, plainOk);
+    }
+
+    console.log(`✅ ลงทะเบียนแล้ว: ${childName} (CID: ${cidShow}) childKey=${childKey} flex=${flexSent}`);
     return;
   }
 
