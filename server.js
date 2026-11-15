@@ -371,8 +371,18 @@ async function handleEvent(e) {
       text: `🔍 พบข้อมูล\n\n👶 ชื่อ : ${child.name}\n🪪 เลขบัตร ปชช. : ${cid}\n\nกรุณายืนยันข้อมูล`,
       quickReply: {
         items: [
-          { type: "action", action: { type: "message", label: "✅ ยืนยัน", text: `__confirm__${cid}__${childKey}` } },
-          { type: "action", action: { type: "message", label: "❌ ยกเลิก", text: `__cancel__` } }
+{ type: "action", action: {
+    type: "postback",
+    label: "✅ ยืนยัน",
+    data: `__confirm__${cid}__${childKey}`,   // ส่งให้ระบบ ผู้ใช้ไม่เห็น
+    displayText: "✅ ยืนยัน"                   // ข้อความที่ขึ้นในแชต
+} },
+{ type: "action", action: {
+    type: "postback",
+    label: "❌ ยกเลิก",
+    data: `__cancel__`,
+    displayText: "❌ ยกเลิก"
+} }
         ]
       }
     };
