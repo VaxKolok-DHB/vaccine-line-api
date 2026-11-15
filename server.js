@@ -72,13 +72,53 @@ function buildSymptomQuickReply(childKey) {
 // =====================
 // Firebase helpers (axios REST)
 // =====================
+// ✅ ใช้ Firebase Admin SDK (service account) เมื่อมี FIREBASE_SERVICE_ACCOUNT
+// Admin SDK ผ่านกฎ (rules) ของฐานข้อมูลได้ ทำให้ล็อก rules ไม่ให้บุคคลภายนอกอ่าน/เขียนได้
+// ถ้าไม่ตั้งค่า จะถอยกลับไปเรียก REST แบบไม่ล็อกอินเหมือนเดิม (จะใช้ได้เฉพาะ path ที่ rules เปิดไว้)
+let fbDb = null;
+if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+  try {
+    const admin = require("firebase-admin");
+    const raw   = process.env.FIREBASE_SERVICE_ACCOUNT.trim();
+    // รองรับทั้ง JSON ตรงๆ และ base64 ของไฟล์ JSON
+    const json  = raw.startsWith("{") ? raw : Buffer.from(raw, "base64").toString("utf8");
+    admin.initializeApp({
+      credential:  admin.credential.cert(JSON.parse(json)),
+      databaseURL: DB,
+    });
+    fbDb = admin.database();
+    console.log("🔐 Firebase: ใช้ Admin SDK (service account)");
+  } catch (err) {
+    console.error("❌ เริ่ม Firebase Admin SDK ไม่สำเร็จ:", err.message);
+    process.exit(1);
+  }
+} else {
+  console.warn("⚠️ ไม่พบ FIREBASE_SERVICE_ACCOUNT ใช้ REST แบบไม่ล็อกอิน (อาจเจอ Permission denied ถ้า rules ปิดอยู่)");
+}
+
+// ตัดค่า undefined ออก (Admin SDK ไม่ยอมรับ undefined)
+const clean = (data) => JSON.parse(JSON.stringify(data));
+
 async function fbGet(path) {
+  if (fbDb) {
+    const snap = await fbDb.ref(path).once("value");
+    return snap.val() || null;
+  }
   const r = await axios.get(`${DB}/${path}.json`);
   return r.data || null;
 }
-async function fbSet(path, data)   { await axios.put(`${DB}/${path}.json`, data); }
-async function fbPatch(path, data) { await axios.patch(`${DB}/${path}.json`, data); }
-async function fbDelete(path)      { await axios.delete(`${DB}/${path}.json`); }
+async function fbSet(path, data) {
+  if (fbDb) return fbDb.ref(path).set(clean(data));
+  await axios.put(`${DB}/${path}.json`, data);
+}
+async function fbPatch(path, data) {
+  if (fbDb) return fbDb.ref(path).update(clean(data));
+  await axios.patch(`${DB}/${path}.json`, data);
+}
+async function fbDelete(path) {
+  if (fbDb) return fbDb.ref(path).remove();
+  await axios.delete(`${DB}/${path}.json`);
+}
 
 // =====================
 // LINE Messaging helpers
@@ -253,6 +293,10 @@ app.post("/webhook", async (req, res) => {
       await handleEvent(e);
     } catch (err) {
       console.error("event error:", err.response?.data || err.message);
+      // แจ้งผู้ใช้ว่าระบบขัดข้อง (ถ้า replyToken ถูกใช้ไปแล้ว คำสั่งนี้จะล้มเหลวเงียบๆ ไม่มีผลเสีย)
+      if (e && e.replyToken) {
+        await reply(e.replyToken, "❌ ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง หากยังไม่ได้ กรุณาติดต่อเจ้าหน้าที่");
+      }
     }
   }
 });
