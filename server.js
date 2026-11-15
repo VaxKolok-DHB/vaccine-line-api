@@ -14,7 +14,12 @@ app.use(express.json());
 // =====================
 // CONFIG
 // =====================
-const TOKEN = process.env.LINE_TOKEN || "h2xP7qrpsi61rF8PsP9cXAD1IW4xPidRomIj3x4Jk0XyUiJ75t5pMz1mKA/0mjtOzRpfGzesWr5Gh+P0EAH6gTKJ+lhqyOIVGOgS+o9cY3QXBInmGRAOvjiift6fNcQ492IMKgv+vEpM8BqlcT8kVAdB04t89/1O/w1cDnyilFU=";
+// ⚠️ ห้ามเขียน token ลงในโค้ด ให้ตั้งค่าเป็น environment variable ชื่อ LINE_TOKEN เท่านั้น
+const TOKEN = process.env.LINE_TOKEN;
+if (!TOKEN) {
+  console.error("❌ ไม่พบ LINE_TOKEN ใน environment variable กรุณาตั้งค่าก่อนเริ่มระบบ");
+  process.exit(1);
+}
 const DB    = process.env.DB_URL || "https://vaccine-dashboard-bc687-default-rtdb.firebaseio.com";
 
 const MAX_NORMAL      = 3; // ✅ ลดให้เท่ากับ MAX_STEP (รอบประเมินมีแค่ 3 รอบ ถ้าเดิม 5 จะปิดเคสอัตโนมัติไม่ได้เลย)
@@ -95,8 +100,10 @@ async function reply(replyToken, text) {
       { replyToken, messages: [{ type: "text", text }] },
       { headers: LINE_HEADERS() }
     );
+    return true;
   } catch (err) {
     console.error("reply error:", err.response?.data || err.message);
+    return false;
   }
 }
 
@@ -107,8 +114,10 @@ async function replyFlex(replyToken, altText, flexContents) {
       { replyToken, messages: [{ type: "flex", altText, contents: flexContents }] },
       { headers: LINE_HEADERS() }
     );
+    return true;
   } catch (err) {
     console.error("replyFlex error:", err.response?.data || err.message);
+    return false;
   }
 }
 
@@ -408,46 +417,62 @@ async function handleEvent(e) {
   // 2) ยืนยันการลงทะเบียน __confirm__<cid>__<childKey>
   // ================================================================
   if (text.startsWith("__confirm__")) {
-    // ✅ แยกด้วยตำแหน่ง "__" แรกหลัง cid (cid เป็นตัวเลขล้วน) กัน childKey ที่มี "__" อยู่ข้างใน
+    // แยกด้วยตำแหน่ง "__" แรกหลัง cid (cid เป็นตัวเลขล้วน) กัน childKey ที่มี "__" อยู่ข้างใน
     const rest     = text.slice("__confirm__".length);
     const sepIdx   = rest.indexOf("__");
     const cidInput = sepIdx === -1 ? rest : rest.slice(0, sepIdx);
     const childKey = sepIdx === -1 ? ""   : rest.slice(sepIdx + 2);
 
-    const children = await fbGet("children") || {};
-    const child    = children[childKey];
-    if (!child) {
-      await reply(e.replyToken, "❌ ไม่พบข้อมูล กรุณาติดต่อเจ้าหน้าที่");
+    if (!childKey) {
+      await reply(e.replyToken, "❌ ข้อมูลการยืนยันไม่ถูกต้อง กรุณาพิมพ์ ลงทะเบียน [เลขบัตรประชาชน] ใหม่อีกครั้ง");
       return;
     }
 
-    const now       = Date.now();
-    const step1Time = getNextFollowTime(1);
+    let child;
+    try {
+      // ดึงเฉพาะเด็กคนนี้ (เร็วกว่าดึงทั้งตาราง ลดโอกาส replyToken หมดอายุ)
+      child = await fbGet(`children/${childKey}`);
+      if (!child) {
+        await reply(e.replyToken, "❌ ไม่พบข้อมูล กรุณาติดต่อเจ้าหน้าที่");
+        return;
+      }
 
-    await fbSet(`symptoms/${childKey}`, {
-      childKey, userId,
-      name:     child.name     || "",
-      hn:       child.hn       || "",
-      cid:      child.cid      || "",
-      phone:    child.phone    || "",
-      birth:    child.birth    || "",
-      tambon:   child.tambon   || "",
-      hospital: child.hospital || "",
-      house:    child.house    || "",
-      village:  child.village  || "",
-      vaccines: child.vaccines || {},
-      symptom: "", level: "🟢 ปกติ", status: "รอติดตาม",
-      priority: 3, assignedTo: "", followStep: 1, normalCount: 0,
-      nextFollowUp: step1Time, registeredAt: now,
-      lastAskedAt: null, sentFollowStep: null,
-      remindCount: 0, lastRemindAt: null, noResponseAlert: false, // ✅ เพิ่ม field ใหม่
-      updatedAt: now, closedAt: null, time: now,
-    });
+      const now       = Date.now();
+      const step1Time = getNextFollowTime(1);
 
-    await fbPatch(`children/${childKey}`, { lineUserId: userId, updatedAt: thaiTime() });
-    await fbDelete(`pendingRegister/${userId}`);
+      await fbSet(`symptoms/${childKey}`, {
+        childKey, userId,
+        name:     child.name     || "",
+        hn:       child.hn       || "",
+        cid:      child.cid      || "",
+        phone:    child.phone    || "",
+        birth:    child.birth    || "",
+        tambon:   child.tambon   || "",
+        hospital: child.hospital || "",
+        house:    child.house    || "",
+        village:  child.village  || "",
+        vaccines: child.vaccines || {},
+        symptom: "", level: "🟢 ปกติ", status: "รอติดตาม",
+        priority: 3, assignedTo: "", followStep: 1, normalCount: 0,
+        nextFollowUp: step1Time, registeredAt: now,
+        lastAskedAt: null, sentFollowStep: null,
+        remindCount: 0, lastRemindAt: null, noResponseAlert: false,
+        updatedAt: now, closedAt: null, time: now,
+      });
 
-    await replyFlex(e.replyToken, "✅ ลงทะเบียนสำเร็จ", {
+      await fbPatch(`children/${childKey}`, { lineUserId: userId, updatedAt: thaiTime() });
+      await fbDelete(`pendingRegister/${userId}`);
+    } catch (err) {
+      // บันทึกไม่สำเร็จ ต้องแจ้งผู้ใช้ ไม่ปล่อยให้เงียบ
+      console.error("confirm register error:", err.response?.data || err.message);
+      await reply(e.replyToken, "❌ ระบบบันทึกข้อมูลไม่สำเร็จ กรุณากดยืนยันอีกครั้ง หากยังไม่ได้ กรุณาติดต่อเจ้าหน้าที่");
+      return;
+    }
+
+    const childName = child.name || "-";
+    const cidShow   = cidInput || String(child.cid || "-");
+
+    const flexCard = {
       type: "bubble", size: "kilo",
       header: {
         type: "box", layout: "vertical", backgroundColor: "#0e9f6e", paddingAll: "20px",
@@ -461,11 +486,11 @@ async function handleEvent(e) {
         contents: [
           { type: "box", layout: "horizontal", contents: [
             { type: "text", text: "👶 ชื่อ",  size: "sm", color: "#6b7280", flex: 2 },
-            { type: "text", text: child.name || "-", size: "sm", color: "#0d1b2a", weight: "bold", flex: 5, wrap: true }
+            { type: "text", text: childName, size: "sm", color: "#0d1b2a", weight: "bold", flex: 5, wrap: true }
           ]},
           { type: "box", layout: "horizontal", contents: [
             { type: "text", text: "🪪 เลขบัตร ปชช.", size: "sm", color: "#6b7280", flex: 2 },
-            { type: "text", text: cidInput,     size: "sm", color: "#0d1b2a", weight: "bold", flex: 5 }
+            { type: "text", text: cidShow,    size: "sm", color: "#0d1b2a", weight: "bold", flex: 5 }
           ]},
           { type: "box", layout: "horizontal", contents: [
             { type: "text", text: "📋 สถานะ", size: "sm", color: "#6b7280", flex: 2 },
@@ -479,9 +504,25 @@ async function handleEvent(e) {
         type: "box", layout: "vertical", paddingAll: "12px", backgroundColor: "#f9fafb",
         contents: [{ type: "text", text: `🕒 ${thaiTime()}`, size: "xs", color: "#9ca3af", align: "center" }]
       }
-    });
+    };
 
-    console.log(`✅ ลงทะเบียนแล้ว: ${child.name} (CID: ${cidInput}) childKey=${childKey}`);
+    // ✅ ส่งการ์ด "ลงทะเบียนสำเร็จ" ถ้าการ์ดส่งไม่ผ่าน ให้ส่งเป็นข้อความธรรมดาแทน
+    // และถ้า replyToken ใช้ไม่ได้แล้ว (หมดอายุ) ให้ push หาผู้ใช้โดยตรง ผู้ใช้จะได้รับข้อความเสมอ
+    const plainOk =
+      `✅ ลงทะเบียนสำเร็จ\n\n` +
+      `👶 ชื่อ: ${childName}\n` +
+      `🪪 เลขบัตร ปชช.: ${cidShow}\n` +
+      `📋 สถานะ: รอติดตาม\n\n` +
+      `⏱ ระบบจะส่งแบบประเมินอาการใน 30 นาที\n` +
+      `🕒 ${thaiTime()}`;
+
+    const flexSent = await replyFlex(e.replyToken, "✅ ลงทะเบียนสำเร็จ", flexCard);
+    if (!flexSent) {
+      const textSent = await reply(e.replyToken, plainOk);
+      if (!textSent) await push(userId, plainOk);
+    }
+
+    console.log(`✅ ลงทะเบียนแล้ว: ${childName} (CID: ${cidShow}) childKey=${childKey} flex=${flexSent}`);
     return;
   }
 
