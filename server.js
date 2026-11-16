@@ -642,7 +642,7 @@ async function handleEvent(e) {
         type: "box", layout: "vertical", backgroundColor: "#0e9f6e", paddingAll: "20px",
         contents: [
           { type: "text", text: "✅ ลงทะเบียนสำเร็จ",color: "#ffffff", size: "lg", weight: "bold" },
-          { type: "text", text: "ระบบติดตามวัคซีนเด็ก VaxKolok", color: "#d1fae5", size: "xs", margin: "sm" }
+          { type: "text", text: "VaxKolok Care ระบบติดตามอาการเด็กหลังรับวัคซีน", color: "#d1fae5", size: "xs", margin: "sm" }
         ]
       },
       body: {
