@@ -641,7 +641,7 @@ async function handleEvent(e) {
       header: {
         type: "box", layout: "vertical", backgroundColor: "#0e9f6e", paddingAll: "20px",
         contents: [
-          { type: "text", text: "✅ ลงทะเบียนสำเร็จ",color: "#ffffff", size: "lg", weight: "bold" },
+          { type: "text", text: " ลงทะเบียนสำเร็จ",color: "#ffffff", size: "lg", weight: "bold" },
           { type: "text", text: "VaxKolok Care ระบบติดตามอาการเด็กหลังรับวัคซีน", color: "#d1fae5", size: "xs", margin: "sm" }
         ]
       },
@@ -673,7 +673,7 @@ async function handleEvent(e) {
     // ✅ ส่งการ์ด "ลงทะเบียนสำเร็จ" ถ้าการ์ดส่งไม่ผ่าน ให้ส่งเป็นข้อความธรรมดาแทน
     // และถ้า replyToken ใช้ไม่ได้แล้ว (หมดอายุ) ให้ push หาผู้ใช้โดยตรง ผู้ใช้จะได้รับข้อความเสมอ
     const plainOk =
-      `✅ ลงทะเบียนสำเร็จ\n\n` +
+      `ลงทะเบียนสำเร็จ\n\n` +
       `👶 ชื่อ: ${childName}\n` +
       `🪪 เลขบัตร ปชช.: ${cidShow}\n` +
       `📋 สถานะ: รอติดตาม\n\n` +
